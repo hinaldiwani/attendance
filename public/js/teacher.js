@@ -1031,6 +1031,11 @@ async function loadAttendanceHistory() {
               }" class="btn ghost" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" download>
                 Download
               </a>
+              <button class="btn ghost" data-delete-backup="${
+                item.id
+              }" style="padding: 0.25rem 0.75rem; font-size: 0.85rem; color: #dc3545;">
+                Delete
+              </button>
             </div>
           </td>
         </tr>
@@ -1048,10 +1053,71 @@ async function loadAttendanceHistory() {
         viewAttendanceBackup(backupId);
       });
     });
+
+    // Add event listeners for delete buttons
+    const deleteButtons = historyBody.querySelectorAll("[data-delete-backup]");
+    deleteButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const backupId = btn.getAttribute("data-delete-backup");
+        deleteAttendanceBackup(backupId);
+      });
+    });
   } catch (error) {
     historyBody.innerHTML =
       '<tr><td colspan="6">Failed to load history.</td></tr>';
     handleError(error, "Unable to load attendance history");
+  }
+}
+
+async function deleteAttendanceBackup(backupId) {
+  console.log("=== DELETE FUNCTION CALLED (v3 - New Controller) ===");
+  console.log("Delete called with backupId:", backupId);
+  console.log("Type of backupId:", typeof backupId);
+
+  if (!backupId) {
+    console.error("ERROR: backupId is null or undefined!");
+    return;
+  }
+
+  // Show confirmation dialog with warning
+  const confirmed = confirm(
+    "⚠️ WARNING: Are you sure you want to delete this attendance history?\n\n" +
+      "This action CANNOT be undone!\n" +
+      "Once deleted, you will NOT be able to retrieve this data again.\n\n" +
+      "Click 'OK' to permanently delete, or 'Cancel' to keep the data.",
+  );
+
+  if (!confirmed) {
+    console.log("Delete cancelled by user");
+    return; // User cancelled
+  }
+
+  const deleteUrl = `/api/teacher/attendance/delete-history`;
+  console.log("Sending POST request to:", deleteUrl);
+  console.log("With body:", { backupId });
+
+  try {
+    const data = await apiFetch(deleteUrl, {
+      method: "POST",
+      body: JSON.stringify({ backupId }),
+    });
+
+    console.log("Delete successful:", data);
+    showToast({
+      title: "Success",
+      message: data.message || "Attendance history deleted successfully",
+      type: "success",
+    });
+
+    // Reload the history list
+    await loadAttendanceHistory();
+  } catch (error) {
+    console.error("Delete error:", error);
+    console.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    handleError(error, "Unable to delete attendance history");
   }
 }
 

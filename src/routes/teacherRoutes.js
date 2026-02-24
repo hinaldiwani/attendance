@@ -18,6 +18,10 @@ import {
   getStreamsAndDivisions,
   getSubjectsForClass,
 } from "../controllers/teacherController.js";
+import {
+  deleteAttendanceHistory,
+  bulkDeleteAttendanceHistory,
+} from "../controllers/deleteController.js";
 
 const router = Router();
 
@@ -33,8 +37,10 @@ router.post("/attendance/manual", manualAttendance);
 router.get("/activity", teacherActivityLog);
 router.post("/attendance/backup", saveAttendanceBackup);
 router.get("/attendance/history", getAttendanceHistory);
-router.get("/attendance/backup/:id", downloadAttendanceBackup);
+router.post("/attendance/delete-history", deleteAttendanceHistory);
+router.post("/attendance/bulk-delete-history", bulkDeleteAttendanceHistory);
 router.get("/attendance/backup/:id/view", viewAttendanceBackup);
+router.get("/attendance/backup/:id", downloadAttendanceBackup);
 router.post("/attendance/export-excel", exportAttendanceExcel);
 
 // Defaulter management routes

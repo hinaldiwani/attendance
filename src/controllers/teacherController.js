@@ -609,6 +609,96 @@ export async function viewAttendanceBackup(req, res, next) {
   }
 }
 
+export async function deleteAttendanceBackup(req, res, next) {
+  try {
+    console.log("🗑️  DELETE request received for backup:", req.params.id);
+    console.log("   Teacher ID:", req.session?.user?.id);
+
+    const teacherId = req.session.user.id;
+    const backupId = req.params.id;
+
+    // First verify the backup belongs to this teacher
+    const [backup] = await pool.query(
+      `SELECT id FROM attendance_backup WHERE id = ? AND teacher_id = ?`,
+      [backupId, teacherId],
+    );
+
+    console.log("   Backup found:", backup?.length > 0 ? "YES" : "NO");
+
+    if (!backup || !Array.isArray(backup) || backup.length === 0) {
+      return res.status(404).json({ message: "Backup not found" });
+    }
+
+    // Delete the backup
+    await pool.query(
+      `DELETE FROM attendance_backup WHERE id = ? AND teacher_id = ?`,
+      [backupId, teacherId],
+    );
+
+    console.log("   ✅ Backup deleted successfully");
+
+    return res.json({
+      message: "Attendance history deleted successfully",
+      success: true,
+    });
+  } catch (error) {
+    console.error("   ❌ Delete error:", error.message);
+    return next(error);
+  }
+}
+
+export async function removeAttendanceHistory(req, res, next) {
+  try {
+    console.log("🗑️  REMOVE request received");
+    console.log("   Request body:", req.body);
+    console.log("   Teacher ID:", req.session?.user?.id);
+
+    const teacherId = req.session.user.id;
+    const { backupId } = req.body;
+
+    if (!backupId) {
+      return res.status(400).json({ message: "Backup ID is required" });
+    }
+
+    console.log("   Attempting to delete backup ID:", backupId);
+
+    // First verify the backup belongs to this teacher
+    const [backup] = await pool.query(
+      `SELECT id FROM attendance_backup WHERE id = ? AND teacher_id = ?`,
+      [backupId, teacherId],
+    );
+
+    console.log("   Backup found:", backup?.length > 0 ? "YES" : "NO");
+
+    if (!backup || !Array.isArray(backup) || backup.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Backup not found or does not belong to you" });
+    }
+
+    // Delete the backup
+    const [result] = await pool.query(
+      `DELETE FROM attendance_backup WHERE id = ? AND teacher_id = ?`,
+      [backupId, teacherId],
+    );
+
+    console.log(
+      "   ✅ Backup deleted successfully. Rows affected:",
+      result.affectedRows,
+    );
+
+    return res.json({
+      message: "Attendance history deleted successfully",
+      success: true,
+      deletedId: backupId,
+    });
+  } catch (error) {
+    console.error("   ❌ Remove error:", error.message);
+    console.error("   Stack:", error.stack);
+    return next(error);
+  }
+}
+
 export async function exportAttendanceExcel(req, res, next) {
   try {
     const teacherId = req.session.user.id;

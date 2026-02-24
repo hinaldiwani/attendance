@@ -20,6 +20,12 @@ const app = express();
 app.set("views", path.join(rootDir, "views"));
 app.set("view engine", "html");
 
+// Disable caching for development
+app.use((req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  next();
+});
+
 app.use(express.static(path.join(rootDir, "public")));
 app.use("/uploads", express.static(path.join(rootDir, "uploads")));
 // Increase payload limits for large CSV imports (up to 50MB)
@@ -39,6 +45,19 @@ app.use(
     },
   }),
 );
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  if (
+    req.method !== "GET" ||
+    !req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico)$/)
+  ) {
+    console.log(
+      `[${new Date().toISOString().substring(11, 19)}] ${req.method.padEnd(7)} ${req.originalUrl || req.url}`,
+    );
+  }
+  next();
+});
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(rootDir, "views", "login.html"));
