@@ -200,6 +200,10 @@ export async function fetchDashboardStats(req, res, next) {
     const [studentCount] = await pool.query(
       `SELECT COUNT(*) as count FROM student_details_db`,
     );
+
+    console.log('📊 Student count query result:', studentCount);
+    console.log('📊 Student count value:', studentCount?.[0]?.count);
+
     const [teacherCount] = await pool.query(
       `SELECT COUNT(*) as count FROM teacher_details_db`,
     );
@@ -235,13 +239,17 @@ export async function fetchDashboardStats(req, res, next) {
        ORDER BY stream, division`,
     );
 
-    return res.json({
+    const response = {
       students: studentCount?.[0]?.count || 0,
       teachers: teacherCount?.[0]?.count || 0,
       streams: streamsList.map((s) => s.stream),
       divisions: uniqueDivisions,
       streamDivisionCounts: streamDivisionCounts || [],
-    });
+    };
+
+    console.log('📊 Sending response to frontend:', JSON.stringify(response, null, 2));
+
+    return res.json(response);
   } catch (error) {
     return next(error);
   }

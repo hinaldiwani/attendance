@@ -35,12 +35,16 @@ function updateSteps() {
 async function loadStats() {
   try {
     const data = await apiFetch("/api/admin/stats");
+    console.log('📊 Dashboard stats received from API:', data);
+    console.log('📊 Student count from API:', data.students);
+
     statElements.forEach((stat) => {
       const key = stat.dataset.stat;
       if (key === "streams") {
         stat.textContent = `${data.streams?.length || 0}`;
       } else {
         stat.textContent = data[key] ?? 0;
+        console.log(`📊 Setting ${key} stat to:`, data[key] ?? 0);
       }
     });
   } catch (error) {

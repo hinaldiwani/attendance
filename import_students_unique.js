@@ -21,59 +21,86 @@ function parseCSV(csvContent) {
 }
 
 async function importStudentsWithUniqueIds() {
+    const connection = await pool.getConnection();
+
     try {
         console.log('📚 Importing students with unique IDs...\n');
 
-        const csvPath = path.join(__dirname, 'IMPORT DETAILS', 'students.csv');
+        const csvPath = path.join(__dirname, 'IMPORT DETAILS', 'students.csv.csv');
         const csvContent = fs.readFileSync(csvPath, 'utf-8');
 
         // Parse CSV
         const records = parseCSV(csvContent);
+        console.log(`📝 Parsed ${records.length} records from CSV\n`);
+
+        // Start transaction
+        await connection.beginTransaction();
+
         console.log('🗑️  Clearing existing students...');
-        await pool.query('DELETE FROM student_details_db');
+        await connection.query('DELETE FROM student_details_db');
         console.log('✅ Existing students cleared\n');
 
         let successCount = 0;
         let errorCount = 0;
 
-        // Import each student with unique ID
-        for (const record of records) {
-            try {
-                // Generate unique student ID: StreamCode + original ID
-                // e.g., BSC001_BSCIT, BSC001_BSCDS, etc.
-                const uniqueId = `${record.Student_ID}_${record.Stream}`;
+        // Prepare batch insert
+        const batchSize = 50;
+        const values = [];
+        const placeholders = [];
 
-                // Debug first few
-                if (successCount < 5) {
-                    console.log(`  DEBUG: Inserting ID="${uniqueId}" Name="${record.Student_Name}" Stream="${record.Stream}"`);
+        for (let i = 0; i < records.length; i++) {
+            const record = records[i];
+
+            // Generate unique student ID: StreamCode + original ID
+            const uniqueId = `${record.Student_ID}_${record.Stream}`;
+
+            // Debug first few
+            if (i < 5) {
+                console.log(`  DEBUG: Will insert ID="${uniqueId}" Name="${record.Student_Name}" Stream="${record.Stream}"`);
+            }
+
+            values.push(
+                uniqueId,
+                record.Student_Name,
+                record.Roll_No,
+                record.Year,
+                record.Stream,
+                record.Division
+            );
+            placeholders.push('(?, ?, ?, ?, ?, ?)');
+            successCount++;
+
+            // Insert in batches or when reaching end
+            if (placeholders.length === batchSize || i === records.length - 1) {
+                try {
+                    const insertQuery = `INSERT INTO student_details_db 
+                        (student_id, student_name, roll_no, year, stream, division) 
+                        VALUES ${placeholders.join(', ')}`;
+
+                    await connection.query(insertQuery, values);
+
+                    if (successCount % 50 === 0 || i === records.length - 1) {
+                        console.log(`✓ Inserted ${successCount} students...`);
+                    }
+
+                    // Reset for next batch
+                    values.length = 0;
+                    placeholders.length = 0;
+                } catch (err) {
+                    errorCount += placeholders.length;
+                    console.log(`⚠️  Error inserting batch: ${err.message}`);
+                    // Reset for next batch
+                    values.length = 0;
+                    placeholders.length = 0;
                 }
-
-                await pool.query(
-                    `INSERT INTO student_details_db 
-           (student_id, student_name, roll_no, year, stream, division) 
-           VALUES (?, ?, ?, ?, ?, ?)`,
-                    [
-                        uniqueId,
-                        record.Student_Name,
-                        record.Roll_No,
-                        record.Year,
-                        record.Stream,
-                        record.Division
-                    ]
-                );
-                successCount++;
-
-                if (successCount % 50 === 0) {
-                    console.log(`✓ Imported ${successCount} students...`);
-                }
-            } catch (err) {
-                errorCount++;
-                console.log(`⚠️  Error importing ${record.Student_ID} (${record.Stream}): ${err.message}`);
-                console.log(`⚠️  Error importing ${record.Student_ID}: ${err.message}`);
             }
         }
 
-        console.log('\n═══════════════════════════════════════════════════════');
+        // Commit transaction
+        await connection.commit();
+        console.log('\n✅ Transaction committed\n');
+
+        console.log('═══════════════════════════════════════════════════════');
         console.log('📊 IMPORT SUMMARY');
         console.log('═══════════════════════════════════════════════════════');
         console.log(`✅ Successfully imported: ${successCount} students`);
@@ -81,7 +108,7 @@ async function importStudentsWithUniqueIds() {
         console.log('═══════════════════════════════════════════════════════\n');
 
         // Verify import
-        const [counts] = await pool.query(`
+        const [counts] = await connection.query(`
       SELECT stream, year, division, COUNT(*) as count
       FROM student_details_db
       GROUP BY stream, year, division
@@ -93,14 +120,21 @@ async function importStudentsWithUniqueIds() {
             console.log(`   ${row.stream} ${row.year} Div ${row.division}: ${row.count} students`);
         });
 
-        const [total] = await pool.query('SELECT COUNT(*) as total FROM student_details_db');
+        const [total] = await connection.query('SELECT COUNT(*) as total FROM student_details_db');
         console.log(`\n✅ Total students in database: ${total[0].total}`);
         console.log('\n🎉 Student import completed successfully!');
 
     } catch (error) {
+        if (connection) {
+            await connection.rollback();
+            console.log('❌ Transaction rolled back');
+        }
         console.error('❌ Error importing students:', error);
         throw error;
     } finally {
+        if (connection) {
+            connection.release();
+        }
         await pool.end();
     }
 }
