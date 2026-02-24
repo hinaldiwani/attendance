@@ -52,7 +52,7 @@ export async function handleStudentImport(req, res, next) {
     return next(error);
   } finally {
     if (req.file) {
-      fs.rm(req.file.path, { force: true }, () => { });
+      fs.rm(req.file.path, { force: true }, () => {});
     }
   }
 }
@@ -78,7 +78,7 @@ export async function handleTeacherImport(req, res, next) {
     return next(error);
   } finally {
     if (req.file) {
-      fs.rm(req.file.path, { force: true }, () => { });
+      fs.rm(req.file.path, { force: true }, () => {});
     }
   }
 }
@@ -201,8 +201,8 @@ export async function fetchDashboardStats(req, res, next) {
       `SELECT COUNT(*) as count FROM student_details_db`,
     );
 
-    console.log('📊 Student count query result:', studentCount);
-    console.log('📊 Student count value:', studentCount?.[0]?.count);
+    console.log("📊 Student count query result:", studentCount);
+    console.log("📊 Student count value:", studentCount?.[0]?.count);
 
     const [teacherCount] = await pool.query(
       `SELECT COUNT(*) as count FROM teacher_details_db`,
@@ -223,12 +223,14 @@ export async function fetchDashboardStats(req, res, next) {
     );
 
     // Split comma-separated divisions and get unique values
-    const uniqueDivisions = [...new Set(
-      divisionsList
-        .map(d => d.division)
-        .flatMap(div => div.split(',').map(d => d.trim().toUpperCase()))
-        .filter(d => d.length > 0)
-    )].sort();
+    const uniqueDivisions = [
+      ...new Set(
+        divisionsList
+          .map((d) => d.division)
+          .flatMap((div) => div.split(",").map((d) => d.trim().toUpperCase()))
+          .filter((d) => d.length > 0),
+      ),
+    ].sort();
 
     // Get stream-division combinations with student counts
     const [streamDivisionCounts] = await pool.query(
@@ -247,7 +249,10 @@ export async function fetchDashboardStats(req, res, next) {
       streamDivisionCounts: streamDivisionCounts || [],
     };
 
-    console.log('📊 Sending response to frontend:', JSON.stringify(response, null, 2));
+    console.log(
+      "📊 Sending response to frontend:",
+      JSON.stringify(response, null, 2),
+    );
 
     return res.json(response);
   } catch (error) {
@@ -419,12 +424,34 @@ export async function downloadAttendanceBackup(req, res, next) {
       return res.status(404).json({ message: "Backup not found" });
     }
 
-    res.setHeader("Content-Type", "text/csv");
+    if (!backup[0].file_content) {
+      return res.status(404).json({ message: "File content not found" });
+    }
+
+    let csvContent;
+    try {
+      // Try to decode as base64 first
+      csvContent = Buffer.from(backup[0].file_content, "base64").toString(
+        "utf-8",
+      );
+      
+      // Verify it's valid CSV by checking if it starts with expected content
+      // If decoded content looks like base64 gibberish, it might already be plain text
+      if (!csvContent.includes('"') && !csvContent.includes(',') && backup[0].file_content.includes(',')) {
+        // The original was probably already plain text
+        csvContent = backup[0].file_content;
+      }
+    } catch (err) {
+      // If base64 decoding fails, assume it's already plain text
+      csvContent = backup[0].file_content;
+    }
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${backup[0].filename}"`,
     );
-    return res.send(backup[0].file_content);
+    return res.send(csvContent);
   } catch (error) {
     return next(error);
   }
@@ -731,7 +758,12 @@ export async function getStudentsInfo(req, res, next) {
   try {
     const { year, stream, semester, division } = req.query;
 
-    console.log('📋 getStudentsInfo called with:', { year, stream, semester, division });
+    console.log("📋 getStudentsInfo called with:", {
+      year,
+      stream,
+      semester,
+      division,
+    });
 
     if (!year || !stream || !semester || !division) {
       return res.status(400).json({
@@ -743,7 +775,7 @@ export async function getStudentsInfo(req, res, next) {
     let studentsWhere = "WHERE year = ? AND stream = ?";
     let studentsParams = [year, stream];
 
-    if (division !== 'ALL') {
+    if (division !== "ALL") {
       studentsWhere += " AND division = ?";
       studentsParams.push(division);
     }
@@ -762,26 +794,29 @@ export async function getStudentsInfo(req, res, next) {
       ORDER BY roll_no
     `;
 
-    console.log('📝 Students Query:', studentsQuery);
-    console.log('📝 Query Params:', studentsParams);
+    console.log("📝 Students Query:", studentsQuery);
+    console.log("📝 Query Params:", studentsParams);
 
     const [students] = await pool.query(studentsQuery, studentsParams);
 
     console.log(`✅ Found ${students.length} students`);
     if (students.length > 0) {
-      console.log('   Sample:', students.slice(0, 3).map(s => `${s.student_id} - ${s.student_name}`));
+      console.log(
+        "   Sample:",
+        students.slice(0, 3).map((s) => `${s.student_id} - ${s.student_name}`),
+      );
     }
 
     // Build WHERE clause for subjects/teachers (teachers have semesters)
     let teacherWhere = "WHERE year = ? AND stream = ?";
     let teacherParams = [year, stream];
 
-    if (semester !== 'ALL') {
+    if (semester !== "ALL") {
       teacherWhere += " AND semester = ?";
       teacherParams.push(semester);
     }
 
-    if (division !== 'ALL') {
+    if (division !== "ALL") {
       // Split comma-separated divisions for teachers
       teacherWhere += " AND (";
       const divisionConditions = [];
@@ -843,7 +878,7 @@ export async function getStreamsDivisions(req, res, next) {
       `SELECT DISTINCT stream FROM student_details_db 
        WHERE year = ? AND stream IS NOT NULL AND stream != ''
        ORDER BY stream`,
-      [year]
+      [year],
     );
 
     // If stream is provided, get divisions for that year-stream combination
@@ -866,12 +901,14 @@ export async function getStreamsDivisions(req, res, next) {
     const [divisionsList] = await pool.query(divisionsQuery, queryParams);
 
     // Split comma-separated divisions and get unique values
-    const uniqueDivisions = [...new Set(
-      divisionsList
-        .map(d => d.division)
-        .flatMap(div => div.split(',').map(d => d.trim().toUpperCase()))
-        .filter(d => d.length > 0)
-    )].sort();
+    const uniqueDivisions = [
+      ...new Set(
+        divisionsList
+          .map((d) => d.division)
+          .flatMap((div) => div.split(",").map((d) => d.trim().toUpperCase()))
+          .filter((d) => d.length > 0),
+      ),
+    ].sort();
 
     return res.json({
       streams: streamsList.map((s) => s.stream),
@@ -913,12 +950,14 @@ export async function getTeacherDivisions(req, res, next) {
     const [divisionsList] = await pool.query(query, params);
 
     // Split comma-separated divisions and get unique values
-    const uniqueDivisions = [...new Set(
-      divisionsList
-        .map(d => d.division)
-        .flatMap(div => div.split(',').map(d => d.trim().toUpperCase()))
-        .filter(d => d.length > 0)
-    )].sort();
+    const uniqueDivisions = [
+      ...new Set(
+        divisionsList
+          .map((d) => d.division)
+          .flatMap((div) => div.split(",").map((d) => d.trim().toUpperCase()))
+          .filter((d) => d.length > 0),
+      ),
+    ].sort();
 
     return res.json({
       divisions: uniqueDivisions,
@@ -945,10 +984,10 @@ export async function getStudentDivisions(req, res, next) {
        WHERE stream = ? AND year = ?
        AND division IS NOT NULL AND division != ''
        ORDER BY division`,
-      [stream, year]
+      [stream, year],
     );
 
-    const divisions = divisionsList.map(d => d.division);
+    const divisions = divisionsList.map((d) => d.division);
 
     return res.json({
       divisions,
@@ -965,11 +1004,11 @@ export async function getTeacherStreams(req, res, next) {
     const [streamsList] = await pool.query(
       `SELECT DISTINCT stream FROM teacher_details_db 
        WHERE stream IS NOT NULL AND stream != ''
-       ORDER BY stream`
+       ORDER BY stream`,
     );
 
     return res.json({
-      streams: streamsList.map(s => s.stream),
+      streams: streamsList.map((s) => s.stream),
     });
   } catch (error) {
     console.error("Get teacher streams error:", error);
@@ -983,11 +1022,11 @@ export async function getStudentStreams(req, res, next) {
     const [streamsList] = await pool.query(
       `SELECT DISTINCT stream FROM student_details_db 
        WHERE stream IS NOT NULL AND stream != ''
-       ORDER BY stream`
+       ORDER BY stream`,
     );
 
     return res.json({
-      streams: streamsList.map(s => s.stream),
+      streams: streamsList.map((s) => s.stream),
     });
   } catch (error) {
     console.error("Get student streams error:", error);

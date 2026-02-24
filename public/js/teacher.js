@@ -30,6 +30,10 @@ const historyModal = document.querySelector("[data-history-modal]");
 const historyBody = document.querySelector("[data-history-body]");
 const closeHistoryButton = document.querySelector("[data-close-history]");
 
+const previewModal = document.querySelector("[data-preview-modal]");
+const closePreviewButton = document.querySelector("[data-close-preview]");
+const previewStudentsBody = document.querySelector("[data-preview-students]");
+
 const snapshotSubject = document.querySelector("[data-session-subject]");
 const snapshotYear = document.querySelector("[data-session-year]");
 const snapshotSemester = document.querySelector("[data-session-semester]");
@@ -196,7 +200,7 @@ function populateYearDropdown() {
   const yearNames = {
     FY: "FY (First Year)",
     SY: "SY (Second Year)",
-    TY: "TY (Third Year)"
+    TY: "TY (Third Year)",
   };
 
   // Add only available years
@@ -219,16 +223,18 @@ function populateSemesterDropdown(year) {
   const semesterMap = {
     FY: [1, 2],
     SY: [3, 4],
-    TY: [5, 6]
+    TY: [5, 6],
   };
 
   if (year && semesterMap[year]) {
     // Filter to only show semesters that the teacher is assigned to
     const possibleSemesters = semesterMap[year];
-    const availableSemestersForYear = possibleSemesters.filter(sem => {
+    const availableSemestersForYear = possibleSemesters.filter((sem) => {
       // Check if availableSemesters includes this semester in "Sem X" format or just "X"
-      return availableSemesters.includes(`Sem ${sem}`) ||
-        availableSemesters.includes(String(sem));
+      return (
+        availableSemesters.includes(`Sem ${sem}`) ||
+        availableSemesters.includes(String(sem))
+      );
     });
 
     if (availableSemestersForYear.length > 0) {
@@ -240,11 +246,13 @@ function populateSemesterDropdown(year) {
       });
       semesterDropdown.disabled = false;
     } else {
-      semesterDropdown.innerHTML = '<option value="">No semesters assigned...</option>';
+      semesterDropdown.innerHTML =
+        '<option value="">No semesters assigned...</option>';
       semesterDropdown.disabled = true;
     }
   } else {
-    semesterDropdown.innerHTML = '<option value="">Select year first...</option>';
+    semesterDropdown.innerHTML =
+      '<option value="">Select year first...</option>';
     semesterDropdown.disabled = true;
   }
 }
@@ -378,12 +386,17 @@ function renderActivity(activity) {
 }
 
 function handleClearRecent() {
-  if (!confirm("Are you sure you want to clear the Recent Classes list? This will only clear the display, not delete records from the database.")) {
+  if (
+    !confirm(
+      "Are you sure you want to clear the Recent Classes list? This will only clear the display, not delete records from the database.",
+    )
+  ) {
     return;
   }
 
   if (recentBody) {
-    recentBody.innerHTML = '<tr><td colspan="6">Recent classes cleared.</td></tr>';
+    recentBody.innerHTML =
+      '<tr><td colspan="6">Recent classes cleared.</td></tr>';
     showToast({
       title: "Cleared",
       message: "Recent classes list has been cleared.",
@@ -393,12 +406,17 @@ function handleClearRecent() {
 }
 
 function handleClearActivity() {
-  if (!confirm("Are you sure you want to clear the Activity Log? This will only clear the display, not delete records from the database.")) {
+  if (
+    !confirm(
+      "Are you sure you want to clear the Activity Log? This will only clear the display, not delete records from the database.",
+    )
+  ) {
     return;
   }
 
   if (activityBody) {
-    activityBody.innerHTML = '<tr><td colspan="3">Activity log cleared.</td></tr>';
+    activityBody.innerHTML =
+      '<tr><td colspan="3">Activity log cleared.</td></tr>';
     showToast({
       title: "Cleared",
       message: "Activity log has been cleared.",
@@ -422,8 +440,9 @@ function buildDetailText(action, meta) {
     const absent = meta.absent ?? 0;
     const total = present + absent;
     const percentage = total ? asPercentage(present, total) : "—";
-    return `${meta.subject || "Class"
-      } • ${percentage} (${present} present/${absent} absent)`;
+    return `${
+      meta.subject || "Class"
+    } • ${percentage} (${present} present/${absent} absent)`;
   }
 
   if (action === "MANUAL_OVERRIDE") {
@@ -460,7 +479,7 @@ function updateSessionBadges() {
 
   const total = currentSession.students.length;
   const present = currentSession.students.filter(
-    (item) => item.status === "P"
+    (item) => item.status === "P",
   ).length;
   const absent = total - present;
 
@@ -496,13 +515,14 @@ function renderActiveSession() {
           <td>${student.id}</td>
           <td>${student.name}</td>
           <td>
-            <button type="button" class="status-pill" data-toggle-status data-status="${student.status
-        }" data-student="${student.id}">
+            <button type="button" class="status-pill" data-toggle-status data-status="${
+              student.status
+            }" data-student="${student.id}">
               ${student.status === "P" ? "Present" : "Absent"}
             </button>
           </td>
         </tr>
-      `
+      `,
     )
     .join("");
 
@@ -513,7 +533,7 @@ function toggleStudentStatus(studentId) {
   if (!currentSession) return;
 
   const target = currentSession.students.find(
-    (student) => student.id === studentId
+    (student) => student.id === studentId,
   );
   if (!target) return;
 
@@ -556,10 +576,17 @@ async function handleStartSession(event) {
     division: formData.get("division")?.trim(),
   };
 
-  if (!payload.subject || !payload.year || !payload.semester || !payload.stream || !payload.division) {
+  if (
+    !payload.subject ||
+    !payload.year ||
+    !payload.semester ||
+    !payload.stream ||
+    !payload.division
+  ) {
     showToast({
       title: "Missing info",
-      message: "Please fill all required fields: subject, year, semester, stream, and division.",
+      message:
+        "Please fill all required fields: subject, year, semester, stream, and division.",
       type: "warning",
     });
     return;
@@ -574,13 +601,13 @@ async function handleStartSession(event) {
 
     const students = Array.isArray(response.students)
       ? response.students.map((student) => ({
-        id: student.student_id,
-        name: student.student_name,
-        rollNo: student.roll_no,
-        stream: student.stream,
-        division: student.division,
-        status: "P",
-      }))
+          id: student.student_id,
+          name: student.student_name,
+          rollNo: student.roll_no,
+          stream: student.stream,
+          division: student.division,
+          status: "P",
+        }))
       : [];
 
     currentSession = {
@@ -655,10 +682,10 @@ async function exportAttendanceCsv(summary) {
       ? new Date(currentSession.startedAt)
       : new Date();
     const datePart = `${pad(d.getDate())}-${pad(
-      d.getMonth() + 1
+      d.getMonth() + 1,
     )}-${d.getFullYear()}`;
     const timePart = `${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(
-      d.getSeconds()
+      d.getSeconds(),
     )}`;
     const subjectPart = (currentSession.subject || "session")
       .replace(/[^a-z0-9-_ ]/gi, "")
@@ -781,7 +808,7 @@ async function handleManualOverride(event) {
 
     if (currentSession) {
       const student = currentSession.students.find(
-        (item) => item.id === payload.studentId
+        (item) => item.id === payload.studentId,
       );
       if (student) {
         student.status = payload.status === "P" ? "P" : "A";
@@ -850,16 +877,21 @@ function initDialogs() {
         }
 
         // If year, stream, and division are pre-filled, load subjects
-        if (lastSessionDetails.year && lastSessionDetails.stream && lastSessionDetails.division) {
+        if (
+          lastSessionDetails.year &&
+          lastSessionDetails.stream &&
+          lastSessionDetails.division
+        ) {
           loadSubjectsForClass(
             lastSessionDetails.year,
             lastSessionDetails.stream,
             lastSessionDetails.division,
-            lastSessionDetails.semester
+            lastSessionDetails.semester,
           ).then(() => {
             // After loading subjects, set the previously selected subject if available
             if (lastSessionDetails.subject) {
-              const subjectDropdown = sessionForm.querySelector("#sessionSubject");
+              const subjectDropdown =
+                sessionForm.querySelector("#sessionSubject");
               if (subjectDropdown) {
                 subjectDropdown.value = lastSessionDetails.subject;
               }
@@ -876,7 +908,7 @@ function initDialogs() {
 
     // Handle cancel button
     const cancelSessionButton = sessionModal.querySelector(
-      "[data-cancel-session]"
+      "[data-cancel-session]",
     );
     if (cancelSessionButton) {
       cancelSessionButton.addEventListener("click", () => {
@@ -901,7 +933,7 @@ function initDialogs() {
 
     // Handle cancel button
     const cancelManualButton = manualModal.querySelector(
-      "[data-cancel-manual]"
+      "[data-cancel-manual]",
     );
     if (cancelManualButton) {
       cancelManualButton.addEventListener("click", () => {
@@ -947,6 +979,12 @@ function initControls() {
     }
   });
 
+  closePreviewButton?.addEventListener("click", () => {
+    if (previewModal) {
+      previewModal.close();
+    }
+  });
+
   signoutButton?.addEventListener("click", async (event) => {
     event.preventDefault();
     try {
@@ -982,10 +1020,18 @@ async function loadAttendanceHistory() {
           <td>${item.division || "—"}</td>
           <td>${savedDate}</td>
           <td>
-            <a href="/api/teacher/attendance/backup/${item.id
-          }" class="btn ghost" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" download>
-              Download
-            </a>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn ghost" data-view-backup="${
+                item.id
+              }" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                View
+              </button>
+              <a href="/api/teacher/attendance/backup/${
+                item.id
+              }" class="btn ghost" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" download>
+                Download
+              </a>
+            </div>
           </td>
         </tr>
       `;
@@ -993,6 +1039,15 @@ async function loadAttendanceHistory() {
       .join("");
 
     historyBody.innerHTML = rows;
+
+    // Add event listeners for view buttons
+    const viewButtons = historyBody.querySelectorAll("[data-view-backup]");
+    viewButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const backupId = btn.getAttribute("data-view-backup");
+        viewAttendanceBackup(backupId);
+      });
+    });
   } catch (error) {
     historyBody.innerHTML =
       '<tr><td colspan="6">Failed to load history.</td></tr>';
@@ -1000,13 +1055,95 @@ async function loadAttendanceHistory() {
   }
 }
 
+async function viewAttendanceBackup(backupId) {
+  if (!previewModal || !previewStudentsBody) return;
+
+  try {
+    // Show modal with loading state
+    previewModal.showModal();
+    previewStudentsBody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
+
+    // Fetch backup data
+    const data = await apiFetch(
+      `/api/teacher/attendance/backup/${backupId}/view`,
+    );
+
+    if (!data || !data.sessionInfo) {
+      throw new Error("Invalid backup data");
+    }
+
+    const { sessionInfo, students } = data;
+
+    // Populate session information
+    document.querySelector("[data-preview-session-id]").textContent =
+      sessionInfo.sessionId || "—";
+    document.querySelector("[data-preview-subject]").textContent =
+      sessionInfo.subject || "—";
+    document.querySelector("[data-preview-year]").textContent =
+      sessionInfo.year || "—";
+    document.querySelector("[data-preview-semester]").textContent =
+      sessionInfo.semester || "—";
+    document.querySelector("[data-preview-stream]").textContent =
+      sessionInfo.stream || "—";
+    document.querySelector("[data-preview-division]").textContent =
+      sessionInfo.division || "—";
+    document.querySelector("[data-preview-teacher]").textContent =
+      sessionInfo.teacher || "—";
+    document.querySelector("[data-preview-datetime]").textContent =
+      sessionInfo.startedAt ? formatDateTime(sessionInfo.startedAt) : "—";
+    document.querySelector("[data-preview-present]").textContent =
+      sessionInfo.present || 0;
+    document.querySelector("[data-preview-absent]").textContent =
+      sessionInfo.absent || 0;
+    document.querySelector("[data-preview-total]").textContent =
+      sessionInfo.total || 0;
+
+    // Populate students table
+    if (!students || students.length === 0) {
+      previewStudentsBody.innerHTML =
+        '<tr><td colspan="4">No student records found.</td></tr>';
+      return;
+    }
+
+    const studentRows = students
+      .map((student) => {
+        const isPresent = student.status === "P";
+        const statusClass = isPresent ? "text-success" : "text-danger";
+        const statusText = isPresent ? "Present" : "Absent";
+        const rowStyle = isPresent
+          ? "background: #d4edda;"
+          : "background: #f8d7da;";
+
+        return `
+        <tr style="${rowStyle}">
+          <td>${student.rollNo || "—"}</td>
+          <td>${student.studentId || "—"}</td>
+          <td>${student.name || "—"}</td>
+          <td class="${statusClass}" style="font-weight: 600;">${statusText}</td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    previewStudentsBody.innerHTML = studentRows;
+  } catch (error) {
+    previewStudentsBody.innerHTML =
+      '<tr><td colspan="4">Failed to load attendance data.</td></tr>';
+    handleError(error, "Unable to load attendance preview");
+  }
+}
+
 function initDefaulterButton() {
   const defaulterModal = document.querySelector("[data-defaulter-modal]");
   const defaulterForm = document.querySelector("[data-defaulter-form]");
-  const defaulterCancelButton = document.querySelector("[data-defaulter-cancel]");
+  const defaulterCancelButton = document.querySelector(
+    "[data-defaulter-cancel]",
+  );
   const defaulterNextButton = document.querySelector("[data-defaulter-next]");
   const defaulterPrevButton = document.querySelector("[data-defaulter-prev]");
-  const defaulterGenerateButton = document.querySelector("[data-defaulter-generate]");
+  const defaulterGenerateButton = document.querySelector(
+    "[data-defaulter-generate]",
+  );
   const tabButtons = document.querySelectorAll("[data-defaulter-tab]");
   const tabContents = document.querySelectorAll("[data-tab-content]");
 
@@ -1014,7 +1151,9 @@ function initDefaulterButton() {
   let currentTabIndex = 0;
 
   // Open modal
-  const generateDefaultersButton = document.querySelector("[data-generate-defaulters]");
+  const generateDefaultersButton = document.querySelector(
+    "[data-generate-defaulters]",
+  );
   if (!generateDefaultersButton) return;
 
   generateDefaultersButton.addEventListener("click", async () => {
@@ -1031,8 +1170,9 @@ function initDefaulterButton() {
 
         // Populate streams
         if (data.streams) {
-          streamSelect.innerHTML = '<option value="">Select stream...</option><option value="ALL">All Streams</option>';
-          data.streams.forEach(stream => {
+          streamSelect.innerHTML =
+            '<option value="">Select stream...</option><option value="ALL">All Streams</option>';
+          data.streams.forEach((stream) => {
             const option = document.createElement("option");
             option.value = stream;
             option.textContent = stream;
@@ -1042,8 +1182,9 @@ function initDefaulterButton() {
 
         // Populate divisions
         if (data.divisions) {
-          divisionSelect.innerHTML = '<option value="">Select division...</option><option value="ALL">All Divisions</option>';
-          data.divisions.forEach(division => {
+          divisionSelect.innerHTML =
+            '<option value="">Select division...</option><option value="ALL">All Divisions</option>';
+          data.divisions.forEach((division) => {
             const option = document.createElement("option");
             option.value = division;
             option.textContent = division;
@@ -1086,9 +1227,14 @@ function initDefaulterButton() {
     });
 
     // Update button visibility
-    if (defaulterPrevButton) defaulterPrevButton.style.display = index > 0 ? "block" : "none";
-    if (defaulterNextButton) defaulterNextButton.style.display = index < tabs.length - 1 ? "block" : "none";
-    if (defaulterGenerateButton) defaulterGenerateButton.style.display = index === tabs.length - 1 ? "block" : "none";
+    if (defaulterPrevButton)
+      defaulterPrevButton.style.display = index > 0 ? "block" : "none";
+    if (defaulterNextButton)
+      defaulterNextButton.style.display =
+        index < tabs.length - 1 ? "block" : "none";
+    if (defaulterGenerateButton)
+      defaulterGenerateButton.style.display =
+        index === tabs.length - 1 ? "block" : "none";
   }
 
   // Tab button clicks
@@ -1101,7 +1247,9 @@ function initDefaulterButton() {
   // Next button
   defaulterNextButton?.addEventListener("click", () => {
     const currentTab = tabs[currentTabIndex];
-    const currentField = document.querySelector(`[data-tab-content="${currentTab}"] select, [data-tab-content="${currentTab}"] input`);
+    const currentField = document.querySelector(
+      `[data-tab-content="${currentTab}"] select, [data-tab-content="${currentTab}"] input`,
+    );
 
     if (currentField && !currentField.checkValidity()) {
       currentField.reportValidity();
@@ -1142,30 +1290,35 @@ function initDefaulterButton() {
       threshold: parseFloat(threshold),
     });
 
-    if (month && month !== "ALL") params.append('month', month);
-    if (year && year !== "ALL") params.append('year', year);
-    if (stream && stream !== "ALL") params.append('stream', stream);
-    if (division && division !== "ALL") params.append('division', division);
+    if (month && month !== "ALL") params.append("month", month);
+    if (year && year !== "ALL") params.append("year", year);
+    if (stream && stream !== "ALL") params.append("stream", stream);
+    if (division && division !== "ALL") params.append("division", division);
 
     try {
       toggleLoading(defaulterGenerateButton, true);
       defaulterModal?.close();
 
       // Fetch the Excel file
-      const response = await fetch(`/api/teacher/defaulters/download?${params.toString()}`, {
-        method: 'GET',
-        credentials: 'include'
-      });
+      const response = await fetch(
+        `/api/teacher/defaulters/download?${params.toString()}`,
+        {
+          method: "GET",
+          credentials: "include",
+        },
+      );
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Failed to generate defaulter list' }));
+        const error = await response
+          .json()
+          .catch(() => ({ message: "Failed to generate defaulter list" }));
         throw new Error(error.message);
       }
 
       // Download file
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
 
       const monthName = month === "ALL" ? "All" : month || "All";
@@ -1206,9 +1359,9 @@ function initDefaulterButton() {
 
 // Setup live updates with Server-Sent Events
 function setupLiveUpdates() {
-  const eventSource = new EventSource('/api/teacher/live-updates');
+  const eventSource = new EventSource("/api/teacher/live-updates");
 
-  eventSource.addEventListener('attendance_marked', (event) => {
+  eventSource.addEventListener("attendance_marked", (event) => {
     const data = JSON.parse(event.data);
     // Only show if it's from another teacher
     if (teacherData && data.teacherId !== teacherData.id) {
@@ -1222,7 +1375,7 @@ function setupLiveUpdates() {
     loadDashboard();
   });
 
-  eventSource.addEventListener('data_import', (event) => {
+  eventSource.addEventListener("data_import", (event) => {
     const data = JSON.parse(event.data);
     showToast({
       title: "Data Updated",
@@ -1232,9 +1385,9 @@ function setupLiveUpdates() {
     loadDashboard();
   });
 
-  eventSource.addEventListener('defaulter_generated', (event) => {
+  eventSource.addEventListener("defaulter_generated", (event) => {
     const data = JSON.parse(event.data);
-    if (data.role === 'teacher') {
+    if (data.role === "teacher") {
       showToast({
         title: "Defaulter List Generated",
         message: `${data.count} defaulters found`,
@@ -1244,19 +1397,19 @@ function setupLiveUpdates() {
     loadActivity();
   });
 
-  eventSource.addEventListener('stats_update', (event) => {
+  eventSource.addEventListener("stats_update", (event) => {
     loadDashboard();
   });
 
   eventSource.onerror = (error) => {
-    console.error('SSE connection error:', error);
+    console.error("SSE connection error:", error);
     eventSource.close();
     // Retry connection after 5 seconds
     setTimeout(setupLiveUpdates, 5000);
   };
 
   // Cleanup on page unload
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener("beforeunload", () => {
     eventSource.close();
   });
 }

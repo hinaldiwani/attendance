@@ -1,512 +1,818 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AcadMark · Teacher Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AcadMark · Teacher Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css" />
-</head>
-
-<body>
-  <div class="shell">
-    <aside class="sidebar-panel">
-      <div class="brand" style="margin-bottom: 2rem">
-        <div class="brand-mark">AM</div>
-        <div>
-          <h1>AcadMark</h1>
-          <p class="tagline">Teacher Workspace</p>
+  <body>
+    <div class="shell">
+      <aside class="sidebar-panel">
+        <div class="brand" style="margin-bottom: 2rem">
+          <div class="brand-mark">AM</div>
+          <div>
+            <h1>AcadMark</h1>
+            <p class="tagline">Teacher Workspace</p>
+          </div>
         </div>
-      </div>
 
-      <nav class="sidebar">
-        <button class="btn secondary" data-start-session>
-          Start attendance
-        </button>
-        <button class="btn secondary" data-open-manual>
-          Manual override
-        </button>
-        <button class="btn" data-generate-defaulters
-          style="background: #e74c3c; border-color: #e74c3c; margin-top: 1rem;">Generate Defaulter List
-        </button>
-        <a href="#" class="btn ghost" data-signout>Sign out</a>
-      </nav>
+        <nav class="sidebar">
+          <button class="btn secondary" data-start-session>
+            Start attendance
+          </button>
+          <button class="btn secondary" data-open-manual>
+            Manual override
+          </button>
+          <button
+            class="btn"
+            data-generate-defaulters
+            style="background: #e74c3c; border-color: #e74c3c; margin-top: 1rem"
+          >
+            Generate Defaulter List
+          </button>
+          <a href="#" class="btn ghost" data-signout>Sign out</a>
+        </nav>
 
-      <div class="card" style="margin-top: 2rem">
-        <h3>Session Snapshot</h3>
-        <div style="
+        <div class="card" style="margin-top: 2rem">
+          <h3>Session Snapshot</h3>
+          <div
+            style="
               margin-top: 1rem;
               display: grid;
               gap: 0.5rem;
               font-size: 0.9rem;
-            ">
-          <div>
-            <strong>Subject:</strong> <span data-session-subject>–</span>
-          </div>
-          <div>
-            <strong>Year:</strong> <span data-session-year>–</span>
-          </div>
-          <div>
-            <strong>Semester:</strong> <span data-session-semester>–</span>
-          </div>
-          <div>
-            <strong>Division:</strong> <span data-session-division>–</span>
-          </div>
-          <div>
-            <strong>Stream:</strong> <span data-session-stream>–</span>
-          </div>
-          <div>
-            <strong>Started:</strong> <span data-session-start>–</span>
+            "
+          >
+            <div>
+              <strong>Subject:</strong> <span data-session-subject>–</span>
+            </div>
+            <div><strong>Year:</strong> <span data-session-year>–</span></div>
+            <div>
+              <strong>Semester:</strong> <span data-session-semester>–</span>
+            </div>
+            <div>
+              <strong>Division:</strong> <span data-session-division>–</span>
+            </div>
+            <div>
+              <strong>Stream:</strong> <span data-session-stream>–</span>
+            </div>
+            <div>
+              <strong>Started:</strong> <span data-session-start>–</span>
+            </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
 
-    <main class="content-panel layout-grid" style="gap: 1.5rem">
-      <header class="header" style="padding: 0">
-        <div>
-          <h2>Teacher Dashboard</h2>
-          <p class="tagline">Touch-friendly controls built for classrooms</p>
-        </div>
-        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap">
-          <button class="btn secondary" data-view-history>
-            View History
-          </button>
-          <button class="btn ghost" data-refresh>Refresh</button>
-        </div>
-      </header>
+      <main class="content-panel layout-grid" style="gap: 1.5rem">
+        <header class="header" style="padding: 0">
+          <div>
+            <h2>Teacher Dashboard</h2>
+            <p class="tagline">Touch-friendly controls built for classrooms</p>
+          </div>
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap">
+            <button class="btn secondary" data-view-history>
+              View History
+            </button>
+            <button class="btn ghost" data-refresh>Refresh</button>
+          </div>
+        </header>
 
-      <section class="layout-grid three" data-summary>
-        <div class="card">
-          <div class="stat">
-            <span class="stat-label">Sessions</span>
-            <span class="stat-value" data-summary-sessions>0</span>
+        <section class="layout-grid three" data-summary>
+          <div class="card">
+            <div class="stat">
+              <span class="stat-label">Sessions</span>
+              <span class="stat-value" data-summary-sessions>0</span>
+            </div>
           </div>
-        </div>
-        <div class="card">
-          <div class="stat">
-            <span class="stat-label">Avg attendance</span>
-            <span class="stat-value" data-summary-average>0%</span>
+          <div class="card">
+            <div class="stat">
+              <span class="stat-label">Avg attendance</span>
+              <span class="stat-value" data-summary-average>0%</span>
+            </div>
           </div>
-        </div>
-        <div class="card">
-          <div class="stat">
-            <span class="stat-label">Students present</span>
-            <span class="stat-value" data-summary-present>0</span>
+          <div class="card">
+            <div class="stat">
+              <span class="stat-label">Students present</span>
+              <span class="stat-value" data-summary-present>0</span>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="card" data-active-session style="display: none">
-        <div style="
+        <section class="card" data-active-session style="display: none">
+          <div
+            style="
               display: flex;
               justify-content: space-between;
               align-items: center;
               gap: 1rem;
-            ">
-          <h3>Active session</h3>
-          <button class="btn" data-end-session>Save session</button>
-        </div>
+            "
+          >
+            <h3>Active session</h3>
+            <button class="btn" data-end-session>Save session</button>
+          </div>
 
-        <div style="
+          <div
+            style="
               display: flex;
               gap: 1.5rem;
               margin-top: 1rem;
               flex-wrap: wrap;
-            ">
-          <div>
-            <div class="badge" data-session-size>0 students</div>
+            "
+          >
+            <div>
+              <div class="badge" data-session-size>0 students</div>
+            </div>
+            <div>
+              <div class="badge success" data-session-present>0 present</div>
+            </div>
+            <div>
+              <div class="badge danger" data-session-absent>0 absent</div>
+            </div>
           </div>
-          <div>
-            <div class="badge success" data-session-present>0 present</div>
-          </div>
-          <div>
-            <div class="badge danger" data-session-absent>0 absent</div>
-          </div>
-        </div>
 
-        <div style="margin-top: 1.5rem">
-          <div class="table-wrapper">
+          <div style="margin-top: 1.5rem">
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Roll No</th>
+                    <th>Student ID</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody data-attendance-body>
+                  <tr>
+                    <td colspan="4">Tap "Start attendance" to begin.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" data-recent-sessions>
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <h3>Recent Classes</h3>
+            <button class="btn ghost" data-clear-recent>Clear</button>
+          </div>
+          <div class="table-wrapper" style="margin-top: 1rem">
             <table>
               <thead>
                 <tr>
-                  <th>Roll No</th>
-                  <th>Student ID</th>
-                  <th>Name</th>
-                  <th>Status</th>
+                  <th>When</th>
+                  <th>Subject</th>
+                  <th>Division</th>
+                  <th>Present</th>
+                  <th>Absent</th>
+                  <th>%</th>
                 </tr>
               </thead>
-              <tbody data-attendance-body>
+              <tbody data-recent-body>
                 <tr>
-                  <td colspan="4">Tap "Start attendance" to begin.</td>
+                  <td colspan="6">No sessions recorded yet.</td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="card" data-recent-sessions>
-        <div style="
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            ">
-          <h3>Recent Classes</h3>
-          <button class="btn ghost" data-clear-recent>Clear</button>
-        </div>
-        <div class="table-wrapper" style="margin-top: 1rem">
-          <table>
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Subject</th>
-                <th>Division</th>
-                <th>Present</th>
-                <th>Absent</th>
-                <th>%</th>
-              </tr>
-            </thead>
-            <tbody data-recent-body>
-              <tr>
-                <td colspan="6">No sessions recorded yet.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card" data-activity-section>
-        <div style="
+        <section class="card" data-activity-section>
+          <div
+            style="
               display: flex;
               justify-content: space-between;
               align-items: center;
               gap: 0.5rem;
-            ">
-          <h3>Activity log</h3>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn ghost" data-clear-activity>Clear</button>
-            <button class="btn ghost" data-refresh-activity>Refresh</button>
+            "
+          >
+            <h3>Activity log</h3>
+            <div style="display: flex; gap: 0.5rem">
+              <button class="btn ghost" data-clear-activity>Clear</button>
+              <button class="btn ghost" data-refresh-activity>Refresh</button>
+            </div>
           </div>
-        </div>
-        <div class="table-wrapper" style="margin-top: 1rem">
-          <table>
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Action</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody data-activity-body>
-              <tr>
-                <td colspan="3">No activity yet.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-  </div>
+          <div class="table-wrapper" style="margin-top: 1rem">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Action</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody data-activity-body>
+                <tr>
+                  <td colspan="3">No activity yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
 
-  <dialog data-manual-modal style="
+    <dialog
+      data-manual-modal
+      style="
         border: none;
         border-radius: 16px;
         padding: 2rem;
         width: min(420px, 90vw);
-      ">
-    <form method="dialog" class="layout-grid" style="gap: 1rem">
-      <h3>Manual override</h3>
-      <div class="input-group">
-        <label for="manualStudentId">Student ID</label>
-        <input id="manualStudentId" name="studentId" required />
-      </div>
-      <div class="input-group">
-        <label for="manualStatus">Status</label>
-        <select id="manualStatus" name="status" required>
-          <option value="P">Present</option>
-          <option value="A">Absent</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label for="manualReason">Reason (optional)</label>
-        <textarea id="manualReason" name="reason" rows="3"></textarea>
-      </div>
-      <menu style="display: flex; gap: 0.75rem; justify-content: flex-end">
-        <button type="button" class="btn secondary" data-cancel-manual>
-          Cancel
-        </button>
-        <button type="submit" class="btn" value="submit">Confirm</button>
-      </menu>
-    </form>
-  </dialog>
+      "
+    >
+      <form method="dialog" class="layout-grid" style="gap: 1rem">
+        <h3>Manual override</h3>
+        <div class="input-group">
+          <label for="manualStudentId">Student ID</label>
+          <input id="manualStudentId" name="studentId" required />
+        </div>
+        <div class="input-group">
+          <label for="manualStatus">Status</label>
+          <select id="manualStatus" name="status" required>
+            <option value="P">Present</option>
+            <option value="A">Absent</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="manualReason">Reason (optional)</label>
+          <textarea id="manualReason" name="reason" rows="3"></textarea>
+        </div>
+        <menu style="display: flex; gap: 0.75rem; justify-content: flex-end">
+          <button type="button" class="btn secondary" data-cancel-manual>
+            Cancel
+          </button>
+          <button type="submit" class="btn" value="submit">Confirm</button>
+        </menu>
+      </form>
+    </dialog>
 
-  <dialog data-session-modal style="
+    <dialog
+      data-session-modal
+      style="
         border: none;
         border-radius: 16px;
         padding: 2rem;
         width: min(420px, 90vw);
-      ">
-    <form method="dialog" class="layout-grid" style="gap: 1rem">
-      <h3>Start attendance</h3>
-      <p class="tagline">
-        Confirm class details before starting a new session.
-      </p>
-      <div class="input-group">
-        <label for="sessionYear">Year</label>
-        <select id="sessionYear" name="year" required>
-          <option value="">Select year...</option>
-          <option value="FY">FY (First Year)</option>
-          <option value="SY">SY (Second Year)</option>
-          <option value="TY">TY (Third Year)</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label for="sessionSemester">Semester</label>
-        <select id="sessionSemester" name="semester" required disabled>
-          <option value="">Select year first...</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label for="sessionStream">Stream</label>
-        <select id="sessionStream" name="stream" required>
-          <option value="">Select stream...</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label for="sessionDivision">Division</label>
-        <select id="sessionDivision" name="division" required>
-          <option value="">Select division...</option>
-        </select>
-      </div>
-      <div class="input-group" id="subjectGroup" style="display: none;">
-        <label for="sessionSubject">Subject</label>
-        <select id="sessionSubject" name="subject" required>
-          <option value="">Select subject...</option>
-        </select>
-      </div>
-      <menu style="display: flex; gap: 0.75rem; justify-content: flex-end">
-        <button type="button" class="btn secondary" data-cancel-session>
-          Cancel
-        </button>
-        <button type="submit" class="btn" value="submit" id="beginButton" disabled>Begin</button>
-      </menu>
-    </form>
-  </dialog>
+      "
+    >
+      <form method="dialog" class="layout-grid" style="gap: 1rem">
+        <h3>Start attendance</h3>
+        <p class="tagline">
+          Confirm class details before starting a new session.
+        </p>
+        <div class="input-group">
+          <label for="sessionYear">Year</label>
+          <select id="sessionYear" name="year" required>
+            <option value="">Select year...</option>
+            <option value="FY">FY (First Year)</option>
+            <option value="SY">SY (Second Year)</option>
+            <option value="TY">TY (Third Year)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="sessionSemester">Semester</label>
+          <select id="sessionSemester" name="semester" required disabled>
+            <option value="">Select year first...</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="sessionStream">Stream</label>
+          <select id="sessionStream" name="stream" required>
+            <option value="">Select stream...</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="sessionDivision">Division</label>
+          <select id="sessionDivision" name="division" required>
+            <option value="">Select division...</option>
+          </select>
+        </div>
+        <div class="input-group" id="subjectGroup" style="display: none">
+          <label for="sessionSubject">Subject</label>
+          <select id="sessionSubject" name="subject" required>
+            <option value="">Select subject...</option>
+          </select>
+        </div>
+        <menu style="display: flex; gap: 0.75rem; justify-content: flex-end">
+          <button type="button" class="btn secondary" data-cancel-session>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn"
+            value="submit"
+            id="beginButton"
+            disabled
+          >
+            Begin
+          </button>
+        </menu>
+      </form>
+    </dialog>
 
-  <dialog data-history-modal style="
+    <dialog
+      data-history-modal
+      style="
         border: none;
         border-radius: 16px;
         padding: 2rem;
         width: min(800px, 90vw);
         max-height: 80vh;
-      ">
-    <div class="layout-grid" style="gap: 1rem">
-      <div style="
+      "
+    >
+      <div class="layout-grid" style="gap: 1rem">
+        <div
+          style="
             display: flex;
             justify-content: space-between;
             align-items: center;
-          ">
-        <h3>Attendance History</h3>
-        <button type="button" class="btn ghost" data-close-history>
-          Close
-        </button>
+          "
+        >
+          <h3>Attendance History</h3>
+          <button type="button" class="btn ghost" data-close-history>
+            Close
+          </button>
+        </div>
+        <div class="table-wrapper" style="max-height: 60vh; overflow-y: auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Subject</th>
+                <th>Stream</th>
+                <th>Division</th>
+                <th>Saved</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody data-history-body>
+              <tr>
+                <td colspan="6">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="table-wrapper" style="max-height: 60vh; overflow-y: auto">
-        <table>
-          <thead>
-            <tr>
-              <th>Filename</th>
-              <th>Subject</th>
-              <th>Stream</th>
-              <th>Division</th>
-              <th>Saved</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody data-history-body>
-            <tr>
-              <td colspan="6">Loading...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </dialog>
+    </dialog>
 
-  <dialog data-defaulter-modal style="
+    <!-- Attendance Preview Modal -->
+    <dialog
+      data-preview-modal
+      style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(900px, 90vw);
+        max-height: 85vh;
+      "
+    >
+      <div class="layout-grid" style="gap: 1.5rem">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          "
+        >
+          <h3>Attendance Session Preview</h3>
+          <button type="button" class="btn ghost" data-close-preview>
+            Close
+          </button>
+        </div>
+
+        <!-- Session Information -->
+        <div class="card" style="padding: 1.5rem; background: #f8f9fa">
+          <div
+            style="
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+              gap: 1rem;
+            "
+          >
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Session ID
+              </p>
+              <p style="font-weight: 600" data-preview-session-id>—</p>
+            </div>
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Subject
+              </p>
+              <p style="font-weight: 600" data-preview-subject>—</p>
+            </div>
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Year
+              </p>
+              <p style="font-weight: 600" data-preview-year>—</p>
+            </div>
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Semester
+              </p>
+              <p style="font-weight: 600" data-preview-semester>—</p>
+            </div>
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Stream
+              </p>
+              <p style="font-weight: 600" data-preview-stream>—</p>
+            </div>
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Division
+              </p>
+              <p style="font-weight: 600" data-preview-division>—</p>
+            </div>
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Teacher
+              </p>
+              <p style="font-weight: 600" data-preview-teacher>—</p>
+            </div>
+            <div>
+              <p
+                style="
+                  color: #6c757d;
+                  font-size: 0.85rem;
+                  margin-bottom: 0.25rem;
+                "
+              >
+                Date & Time
+              </p>
+              <p style="font-weight: 600" data-preview-datetime>—</p>
+            </div>
+          </div>
+          <div
+            style="
+              display: flex;
+              gap: 1.5rem;
+              margin-top: 1rem;
+              padding-top: 1rem;
+              border-top: 2px solid #dee2e6;
+            "
+          >
+            <div>
+              <span style="color: #6c757d; font-size: 0.85rem">Present: </span>
+              <span
+                style="font-weight: 700; color: #28a745; font-size: 1.1rem"
+                data-preview-present
+                >0</span
+              >
+            </div>
+            <div>
+              <span style="color: #6c757d; font-size: 0.85rem">Absent: </span>
+              <span
+                style="font-weight: 700; color: #dc3545; font-size: 1.1rem"
+                data-preview-absent
+                >0</span
+              >
+            </div>
+            <div>
+              <span style="color: #6c757d; font-size: 0.85rem">Total: </span>
+              <span
+                style="font-weight: 700; font-size: 1.1rem"
+                data-preview-total
+                >0</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Students Table -->
+        <div class="table-wrapper" style="max-height: 50vh; overflow-y: auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Roll No</th>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody data-preview-students>
+              <tr>
+                <td colspan="4">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog
+      data-defaulter-modal
+      style="
         border: none;
         border-radius: 16px;
         padding: 2rem;
         width: min(600px, 90vw);
-      ">
-    <div class="layout-grid" style="gap: 1.5rem">
-      <div>
-        <h3>Generate Defaulter List</h3>
-        <p class="tagline">Configure defaulter selection criteria</p>
+      "
+    >
+      <div class="layout-grid" style="gap: 1.5rem">
+        <div>
+          <h3>Generate Defaulter List</h3>
+          <p class="tagline">Configure defaulter selection criteria</p>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div
+          style="
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 2px solid #e0e0e0;
+            overflow-x: auto;
+          "
+        >
+          <button
+            type="button"
+            class="tab-btn active"
+            data-defaulter-tab="year"
+            style="
+              padding: 0.75rem 1.25rem;
+              border: none;
+              background: none;
+              cursor: pointer;
+              border-bottom: 3px solid transparent;
+              font-weight: 500;
+              transition: all 0.2s;
+            "
+          >
+            Year
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-defaulter-tab="stream"
+            style="
+              padding: 0.75rem 1.25rem;
+              border: none;
+              background: none;
+              cursor: pointer;
+              border-bottom: 3px solid transparent;
+              font-weight: 500;
+              transition: all 0.2s;
+            "
+          >
+            Stream
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-defaulter-tab="division"
+            style="
+              padding: 0.75rem 1.25rem;
+              border: none;
+              background: none;
+              cursor: pointer;
+              border-bottom: 3px solid transparent;
+              font-weight: 500;
+              transition: all 0.2s;
+            "
+          >
+            Division
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-defaulter-tab="month"
+            style="
+              padding: 0.75rem 1.25rem;
+              border: none;
+              background: none;
+              cursor: pointer;
+              border-bottom: 3px solid transparent;
+              font-weight: 500;
+              transition: all 0.2s;
+            "
+          >
+            Month
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            data-defaulter-tab="percentage"
+            style="
+              padding: 0.75rem 1.25rem;
+              border: none;
+              background: none;
+              cursor: pointer;
+              border-bottom: 3px solid transparent;
+              font-weight: 500;
+              transition: all 0.2s;
+            "
+          >
+            Percentage
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <form
+          data-defaulter-form
+          class="layout-grid"
+          style="gap: 1rem; min-height: 200px"
+        >
+          <!-- Year Tab -->
+          <div class="tab-content active" data-tab-content="year">
+            <div class="input-group">
+              <label for="defaulterYear">Academic Year</label>
+              <select id="defaulterYear" name="year" required>
+                <option value="">Select year...</option>
+                <option value="ALL">All Years</option>
+                <option value="FY">FY (First Year)</option>
+                <option value="SY">SY (Second Year)</option>
+                <option value="TY">TY (Third Year)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Stream Tab -->
+          <div
+            class="tab-content"
+            data-tab-content="stream"
+            style="display: none"
+          >
+            <div class="input-group">
+              <label for="defaulterStream">Stream</label>
+              <select id="defaulterStream" name="stream" required>
+                <option value="">Select stream...</option>
+                <option value="ALL">All Streams</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Division Tab -->
+          <div
+            class="tab-content"
+            data-tab-content="division"
+            style="display: none"
+          >
+            <div class="input-group">
+              <label for="defaulterDivision">Division</label>
+              <select id="defaulterDivision" name="division" required>
+                <option value="">Select division...</option>
+                <option value="ALL">All Divisions</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Month Tab -->
+          <div
+            class="tab-content"
+            data-tab-content="month"
+            style="display: none"
+          >
+            <div class="input-group">
+              <label for="defaulterMonth">Month</label>
+              <select id="defaulterMonth" name="month" required>
+                <option value="">Select month...</option>
+                <option value="ALL">All Months</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Percentage Tab -->
+          <div
+            class="tab-content"
+            data-tab-content="percentage"
+            style="display: none"
+          >
+            <div class="input-group">
+              <label for="defaulterPercentage"
+                >Minimum Attendance Percentage</label
+              >
+              <input
+                type="number"
+                id="defaulterPercentage"
+                name="threshold"
+                min="0"
+                max="100"
+                step="1"
+                value="75"
+                required
+                placeholder="Enter percentage (0-100)"
+              />
+              <p class="tagline" style="margin-top: 0.5rem">
+                Students below this percentage will be marked as defaulters
+              </p>
+            </div>
+          </div>
+
+          <!-- Navigation Buttons -->
+          <menu
+            style="
+              display: flex;
+              gap: 0.75rem;
+              justify-content: space-between;
+              margin-top: 1rem;
+            "
+          >
+            <div style="display: flex; gap: 0.75rem">
+              <button type="button" class="btn secondary" data-defaulter-cancel>
+                Cancel
+              </button>
+            </div>
+            <div style="display: flex; gap: 0.75rem">
+              <button
+                type="button"
+                class="btn ghost"
+                data-defaulter-prev
+                style="display: none"
+              >
+                Previous
+              </button>
+              <button type="button" class="btn secondary" data-defaulter-next>
+                Next
+              </button>
+              <button
+                type="submit"
+                class="btn"
+                data-defaulter-generate
+                style="
+                  display: none;
+                  background: #e74c3c;
+                  border-color: #e74c3c;
+                "
+              >
+                Generate List
+              </button>
+            </div>
+          </menu>
+        </form>
       </div>
+    </dialog>
 
-      <!-- Tab Navigation -->
-      <div style="display: flex; gap: 0.5rem; border-bottom: 2px solid #e0e0e0; overflow-x: auto;">
-        <button type="button" class="tab-btn active" data-defaulter-tab="year" style="
-              padding: 0.75rem 1.25rem;
-              border: none;
-              background: none;
-              cursor: pointer;
-              border-bottom: 3px solid transparent;
-              font-weight: 500;
-              transition: all 0.2s;
-            ">
-          Year
-        </button>
-        <button type="button" class="tab-btn" data-defaulter-tab="stream" style="
-              padding: 0.75rem 1.25rem;
-              border: none;
-              background: none;
-              cursor: pointer;
-              border-bottom: 3px solid transparent;
-              font-weight: 500;
-              transition: all 0.2s;
-            ">
-          Stream
-        </button>
-        <button type="button" class="tab-btn" data-defaulter-tab="division" style="
-              padding: 0.75rem 1.25rem;
-              border: none;
-              background: none;
-              cursor: pointer;
-              border-bottom: 3px solid transparent;
-              font-weight: 500;
-              transition: all 0.2s;
-            ">
-          Division
-        </button>
-        <button type="button" class="tab-btn" data-defaulter-tab="month" style="
-              padding: 0.75rem 1.25rem;
-              border: none;
-              background: none;
-              cursor: pointer;
-              border-bottom: 3px solid transparent;
-              font-weight: 500;
-              transition: all 0.2s;
-            ">
-          Month
-        </button>
-        <button type="button" class="tab-btn" data-defaulter-tab="percentage" style="
-              padding: 0.75rem 1.25rem;
-              border: none;
-              background: none;
-              cursor: pointer;
-              border-bottom: 3px solid transparent;
-              font-weight: 500;
-              transition: all 0.2s;
-            ">
-          Percentage
-        </button>
-      </div>
-
-      <!-- Tab Content -->
-      <form data-defaulter-form class="layout-grid" style="gap: 1rem; min-height: 200px;">
-        <!-- Year Tab -->
-        <div class="tab-content active" data-tab-content="year">
-          <div class="input-group">
-            <label for="defaulterYear">Academic Year</label>
-            <select id="defaulterYear" name="year" required>
-              <option value="">Select year...</option>
-              <option value="ALL">All Years</option>
-              <option value="FY">FY (First Year)</option>
-              <option value="SY">SY (Second Year)</option>
-              <option value="TY">TY (Third Year)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Stream Tab -->
-        <div class="tab-content" data-tab-content="stream" style="display: none;">
-          <div class="input-group">
-            <label for="defaulterStream">Stream</label>
-            <select id="defaulterStream" name="stream" required>
-              <option value="">Select stream...</option>
-              <option value="ALL">All Streams</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Division Tab -->
-        <div class="tab-content" data-tab-content="division" style="display: none;">
-          <div class="input-group">
-            <label for="defaulterDivision">Division</label>
-            <select id="defaulterDivision" name="division" required>
-              <option value="">Select division...</option>
-              <option value="ALL">All Divisions</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Month Tab -->
-        <div class="tab-content" data-tab-content="month" style="display: none;">
-          <div class="input-group">
-            <label for="defaulterMonth">Month</label>
-            <select id="defaulterMonth" name="month" required>
-              <option value="">Select month...</option>
-              <option value="ALL">All Months</option>
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Percentage Tab -->
-        <div class="tab-content" data-tab-content="percentage" style="display: none;">
-          <div class="input-group">
-            <label for="defaulterPercentage">Minimum Attendance Percentage</label>
-            <input type="number" id="defaulterPercentage" name="threshold" min="0" max="100" step="1" value="75"
-              required placeholder="Enter percentage (0-100)">
-            <p class="tagline" style="margin-top: 0.5rem;">
-              Students below this percentage will be marked as defaulters
-            </p>
-          </div>
-        </div>
-
-        <!-- Navigation Buttons -->
-        <menu style="display: flex; gap: 0.75rem; justify-content: space-between; margin-top: 1rem;">
-          <div style="display: flex; gap: 0.75rem;">
-            <button type="button" class="btn secondary" data-defaulter-cancel>
-              Cancel
-            </button>
-          </div>
-          <div style="display: flex; gap: 0.75rem;">
-            <button type="button" class="btn ghost" data-defaulter-prev style="display: none;">
-              Previous
-            </button>
-            <button type="button" class="btn secondary" data-defaulter-next>
-              Next
-            </button>
-            <button type="submit" class="btn" data-defaulter-generate
-              style="display: none; background: #e74c3c; border-color: #e74c3c;">
-              Generate List
-            </button>
-          </div>
-        </menu>
-      </form>
-    </div>
-  </dialog>
-
-  <div class="toast-stack" data-toast-stack></div>
-  <script type="module" src="/js/teacher.js"></script>
-</body>
-
+    <div class="toast-stack" data-toast-stack></div>
+    <script type="module" src="/js/teacher.js"></script>
+  </body>
 </html>

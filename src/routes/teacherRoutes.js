@@ -11,6 +11,7 @@ import {
   saveAttendanceBackup,
   getAttendanceHistory,
   downloadAttendanceBackup,
+  viewAttendanceBackup,
   exportAttendanceExcel,
   teacherGetDefaulterList,
   teacherDownloadDefaulterList,
@@ -33,6 +34,7 @@ router.get("/activity", teacherActivityLog);
 router.post("/attendance/backup", saveAttendanceBackup);
 router.get("/attendance/history", getAttendanceHistory);
 router.get("/attendance/backup/:id", downloadAttendanceBackup);
+router.get("/attendance/backup/:id/view", viewAttendanceBackup);
 router.post("/attendance/export-excel", exportAttendanceExcel);
 
 // Defaulter management routes
@@ -41,7 +43,7 @@ router.get("/defaulters/download", teacherDownloadDefaulterList);
 
 // Real-time updates via Server-Sent Events
 router.get("/live-updates", (req, res) => {
-  notificationService.addConnection(req.session.user.id, 'teacher', res, req);
+  notificationService.addConnection(req.session.user.id, "teacher", res, req);
 });
 
 export default router;

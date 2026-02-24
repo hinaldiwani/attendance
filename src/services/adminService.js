@@ -38,34 +38,42 @@ export async function upsertStudents(students, actorId) {
     await connection.beginTransaction();
 
     let insertedCount = 0;
+    const BATCH_SIZE = 100; // Process 100 students at a time
 
-    // Build batch insert query with proper parameterization
-    const values = students.map(() => "(?, ?, ?, ?, ?, ?)").join(",");
-    const params = students.flatMap((student) => [
-      student.studentId?.toString().trim() || "",
-      student.studentName?.toString().trim() || "",
-      student.rollNo?.toString().trim() || "",
-      student.year?.toString().trim() || "",
-      student.stream?.toString().trim() || "",
-      student.division?.toString().trim() || "",
-    ]);
+    // Process students in batches to avoid parameter limits
+    for (let i = 0; i < students.length; i += BATCH_SIZE) {
+      const batch = students.slice(i, i + BATCH_SIZE);
 
-    const sql = `
-      INSERT INTO student_details_db 
-        (student_id, student_name, roll_no, year, stream, division) 
-      VALUES ${values}
-      ON DUPLICATE KEY UPDATE 
-        student_name = VALUES(student_name),
-        roll_no = VALUES(roll_no),
-        year = VALUES(year),
-        stream = VALUES(stream),
-        division = VALUES(division)
-    `;
+      // Build batch insert query with proper parameterization
+      const values = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(",");
+      const params = batch.flatMap((student) => [
+        student.studentId?.toString().trim() || "",
+        student.studentName?.toString().trim() || "",
+        student.rollNo?.toString().trim() || "",
+        student.year?.toString().trim() || "",
+        student.stream?.toString().trim() || "",
+        student.division?.toString().trim() || "",
+      ]);
 
-    const [result] = await connection.query(sql, params);
-    // Return actual count of students in the import, not affected rows
-    // (affected rows counts updates as 2, which can be confusing)
-    insertedCount = students.length;
+      const sql = `
+        INSERT INTO student_details_db 
+          (student_id, student_name, roll_no, year, stream, division) 
+        VALUES ${values}
+        ON DUPLICATE KEY UPDATE 
+          student_name = VALUES(student_name),
+          roll_no = VALUES(roll_no),
+          year = VALUES(year),
+          stream = VALUES(stream),
+          division = VALUES(division)
+      `;
+
+      await connection.query(sql, params);
+      insertedCount += batch.length;
+
+      console.log(
+        `✓ Processed batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertedCount}/${students.length} students`,
+      );
+    }
 
     await logActivity(connection, "admin", actorId, "IMPORT_STUDENTS", {
       total: students.length,
@@ -92,34 +100,43 @@ export async function upsertTeachers(teachers, actorId) {
     await connection.beginTransaction();
 
     let insertedCount = 0;
+    const BATCH_SIZE = 100; // Process 100 teachers at a time
 
-    const values = teachers.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(",");
-    const params = teachers.flatMap((teacher) => [
-      teacher.teacherId?.toString().trim() || "",
-      teacher.name?.toString().trim() || "",
-      teacher.subject?.toString().trim() || "",
-      teacher.year?.toString().trim() || "",
-      teacher.stream?.toString().trim() || "",
-      teacher.semester?.toString().trim() || "",
-      teacher.division?.toString().trim() || "",
-    ]);
+    // Process teachers in batches to avoid parameter limits
+    for (let i = 0; i < teachers.length; i += BATCH_SIZE) {
+      const batch = teachers.slice(i, i + BATCH_SIZE);
 
-    const sql = `
-      INSERT INTO teacher_details_db 
-        (teacher_id, name, subject, year, stream, semester, division) 
-      VALUES ${values}
-      ON DUPLICATE KEY UPDATE 
-        name = VALUES(name),
-        subject = VALUES(subject),
-        year = VALUES(year),
-        stream = VALUES(stream),
-        semester = VALUES(semester),
-        division = VALUES(division)
-    `;
+      const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(",");
+      const params = batch.flatMap((teacher) => [
+        teacher.teacherId?.toString().trim() || "",
+        teacher.name?.toString().trim() || "",
+        teacher.subject?.toString().trim() || "",
+        teacher.year?.toString().trim() || "",
+        teacher.stream?.toString().trim() || "",
+        teacher.semester?.toString().trim() || "",
+        teacher.division?.toString().trim() || "",
+      ]);
 
-    const [result] = await connection.query(sql, params);
-    // Return actual count of teachers in the import, not affected rows
-    insertedCount = teachers.length;
+      const sql = `
+        INSERT INTO teacher_details_db 
+          (teacher_id, name, subject, year, stream, semester, division) 
+        VALUES ${values}
+        ON DUPLICATE KEY UPDATE 
+          name = VALUES(name),
+          subject = VALUES(subject),
+          year = VALUES(year),
+          stream = VALUES(stream),
+          semester = VALUES(semester),
+          division = VALUES(division)
+      `;
+
+      await connection.query(sql, params);
+      insertedCount += batch.length;
+
+      console.log(
+        `✓ Processed batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertedCount}/${teachers.length} teachers`,
+      );
+    }
 
     await logActivity(connection, "admin", actorId, "IMPORT_TEACHERS", {
       total: teachers.length,
