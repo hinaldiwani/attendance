@@ -40,6 +40,7 @@ import {
   downloadAdminDefaulterHistoryEntry,
   searchStudent,
   searchTeacher,
+  getStudentSessionAttendance,
 } from "../controllers/adminController.js";
 import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 import notificationService from "../services/notificationService.js";
@@ -116,5 +117,6 @@ router.post("/attendance/update-monthly", updateMonthlyAttendance);
 // Search routes
 router.get("/search/student/:studentId", searchStudent);
 router.get("/search/teacher/:teacherId", searchTeacher);
+router.get("/student/:studentId/sessions", getStudentSessionAttendance);
 
 export default router;

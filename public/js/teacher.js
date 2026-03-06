@@ -2131,7 +2131,11 @@ function performSearch() {
   const searchValue = searchInput.value.trim();
   
   if (!searchValue) {
-    showToast('Please enter a Student ID', 'error');
+    showToast({
+      title: 'Search Required',
+      message: 'Please enter a Student ID',
+      type: 'error'
+    });
     return;
   }
   
@@ -2146,17 +2150,30 @@ async function searchStudent(studentId) {
     if (response.success && response.data) {
       displayStudentDetails(response.data);
     } else {
-      showToast(response.message || 'Student not found', 'error');
+      showToast({
+        title: 'Not Found',
+        message: response.message || 'Student not found or not assigned to you',
+        type: 'error'
+      });
     }
   } catch (error) {
     console.error('Error searching student:', error);
-    showToast('Error searching for student. Please try again.', 'error');
+    showToast({
+      title: 'Search Error',
+      message: 'Error searching for student. Please try again.',
+      type: 'error'
+    });
   }
 }
 
 function displayStudentDetails(student) {
-  const modal = document.getElementById('student-details-modal');
-  const modalContent = modal.querySelector('.modal-content');
+  const studentDetailsModal = document.querySelector('[data-student-details-modal]');
+  const studentDetailsContent = document.querySelector('[data-student-details-content]');
+  
+  if (!studentDetailsModal || !studentDetailsContent) {
+    console.error('Student details modal elements not found');
+    return;
+  }
   
   // Calculate attendance percentage
   const attendancePercentage = student.total_sessions > 0 
@@ -2164,93 +2181,71 @@ function displayStudentDetails(student) {
     : '0.00';
   
   // Determine attendance status
-  let attendanceStatus = 'Good';
-  let statusColor = '#4caf50';
-  if (parseFloat(attendancePercentage) < 50) {
-    attendanceStatus = 'Poor';
-    statusColor = '#f44336';
-  } else if (parseFloat(attendancePercentage) < 75) {
-    attendanceStatus = 'Average';
-    statusColor = '#ff9800';
-  }
+  const attendanceColor = parseFloat(attendancePercentage) >= 75 ? '#27ae60' : '#e74c3c';
   
-  modalContent.innerHTML = `
-    <div class="modal-header">
-      <h2>Student Details</h2>
-      <button class="close-modal" onclick="closeStudentModal()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="details-section">
-        <div class="detail-row">
-          <span class="detail-label">Student ID:</span>
-          <span class="detail-value">${escapeHtml(student.student_id)}</span>
+  studentDetailsContent.innerHTML = `
+    <div class="card" style="background: #f8f9fa; padding: 1.5rem;">
+      <div style="display: grid; gap: 1rem;">
+        <div style="text-align: center; padding: 1rem; background: white; border-radius: 8px;">
+          <h2 style="margin: 0; color: #2c3e50;">${escapeHtml(student.student_name)}</h2>
+          <p style="margin: 0.5rem 0 0; color: #7f8c8d; font-size: 0.9rem;">
+            ID: ${escapeHtml(student.student_id)}
+          </p>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Name:</span>
-          <span class="detail-value">${escapeHtml(student.student_name)}</span>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div style="background: white; padding: 1rem; border-radius: 8px;">
+            <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Roll No</div>
+            <div style="font-size: 1.1rem; font-weight: 600;">${escapeHtml(student.roll_no || 'N/A')}</div>
+          </div>
+          <div style="background: white; padding: 1rem; border-radius: 8px;">
+            <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Year</div>
+            <div style="font-size: 1.1rem; font-weight: 600;">${escapeHtml(student.year)}</div>
+          </div>
+          <div style="background: white; padding: 1rem; border-radius: 8px;">
+            <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Stream</div>
+            <div style="font-size: 1.1rem; font-weight: 600;">${escapeHtml(student.stream)}</div>
+          </div>
+          <div style="background: white; padding: 1rem; border-radius: 8px;">
+            <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Division</div>
+            <div style="font-size: 1.1rem; font-weight: 600;">${escapeHtml(student.division)}</div>
+          </div>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Year:</span>
-          <span class="detail-value">${escapeHtml(student.year)}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Stream:</span>
-          <span class="detail-value">${escapeHtml(student.stream)}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Division:</span>
-          <span class="detail-value">${escapeHtml(student.division)}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Roll No:</span>
-          <span class="detail-value">${escapeHtml(student.roll_no || 'N/A')}</span>
+
+        <div 
+          data-attendance-clickable
+          data-student-id="${student.student_id}"
+          style="background: ${attendanceColor}15; border: 2px solid ${attendanceColor}; padding: 1.5rem; border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.2s;"
+          onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+          onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none';"
+        >
+          <div style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 0.5rem;">Overall Attendance (Click to view details)</div>
+          <div style="font-size: 2.5rem; font-weight: 700; color: ${attendanceColor};">
+            ${attendancePercentage}%
+          </div>
+          <div style="margin-top: 0.5rem; color: #7f8c8d; font-size: 0.85rem;">
+            ${student.total_sessions || 0} total lectures | ${student.attendance_count || 0} attended
+          </div>
         </div>
       </div>
-      
-      <div class="attendance-highlight" style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, ${statusColor}22 0%, ${statusColor}11 100%); border-left: 4px solid ${statusColor}; border-radius: 8px;">
-        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">Attendance Summary</h3>
-        <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px;">
-          <div style="text-align: center;">
-            <div style="font-size: 32px; font-weight: bold; color: ${statusColor};">${attendancePercentage}%</div>
-            <div style="color: #666; margin-top: 5px; font-size: 14px;">Attendance Rate</div>
-          </div>
-          <div style="text-align: center;">
-            <div style="font-size: 32px; font-weight: bold; color: #2196f3;">${student.attendance_count || 0}</div>
-            <div style="color: #666; margin-top: 5px; font-size: 14px;">Present</div>
-          </div>
-          <div style="text-align: center;">
-            <div style="font-size: 32px; font-weight: bold; color: #f44336;">${(student.total_sessions || 0) - (student.attendance_count || 0)}</div>
-            <div style="color: #666; margin-top: 5px; font-size: 14px;">Absent</div>
-          </div>
-          <div style="text-align: center;">
-            <div style="font-size: 32px; font-weight: bold; color: #9e9e9e;">${student.total_sessions || 0}</div>
-            <div style="color: #666; margin-top: 5px; font-size: 14px;">Total Sessions</div>
-          </div>
-        </div>
-        <div style="margin-top: 15px; text-align: center;">
-          <span style="display: inline-block; padding: 8px 20px; background: ${statusColor}; color: white; border-radius: 20px; font-weight: 600; font-size: 14px;">
-            ${attendanceStatus} Attendance
-          </span>
-        </div>
-      </div>
-      
-      ${student.contact ? `
-        <div class="details-section" style="margin-top: 20px;">
-          <div class="detail-row">
-            <span class="detail-label">Contact:</span>
-            <span class="detail-value">${escapeHtml(student.contact)}</span>
-          </div>
-        </div>
-      ` : ''}
     </div>
   `;
   
-  modal.style.display = 'flex';
+  // Attach click event to attendance section
+  const attendanceSection = studentDetailsContent.querySelector('[data-attendance-clickable]');
+  if (attendanceSection) {
+    attendanceSection.addEventListener('click', () => {
+      const studentId = attendanceSection.getAttribute('data-student-id');
+      showSessionAttendance(studentId);
+    });
+  }
+  
+  studentDetailsModal?.showModal();
 }
 
 function closeStudentModal() {
-  const modal = document.getElementById('student-details-modal');
-  modal.style.display = 'none';
+  const studentDetailsModal = document.querySelector('[data-student-details-modal]');
+  studentDetailsModal?.close();
 }
 
 function escapeHtml(text) {
@@ -2260,11 +2255,181 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Session Attendance Modal Functions
+let allSessionData = []; // Store all session data for filtering
+
+async function showSessionAttendance(studentId) {
+  const sessionAttendanceModal = document.querySelector('[data-session-attendance-modal]');
+  const sessionAttendanceContent = document.querySelector('[data-session-attendance-content]');
+  
+  if (!sessionAttendanceModal || !sessionAttendanceContent) {
+    console.error('Session attendance modal elements not found');
+    return;
+  }
+  
+  try {
+    sessionAttendanceContent.innerHTML = `
+      <div style="text-align: center; padding: 2rem; color: #666;">
+        <p style="margin-top: 1rem;">Loading session attendance data...</p>
+      </div>
+    `;
+    
+    sessionAttendanceModal?.showModal();
+    
+    console.log(`Fetching sessions for student: ${studentId}`);
+    const response = await apiFetch(`/api/teacher/student/${encodeURIComponent(studentId)}/sessions`);
+    console.log('Session response:', response);
+    
+    if (response.success && response.data) {
+      allSessionData = response.data;
+      if (allSessionData.length === 0) {
+        sessionAttendanceContent.innerHTML = `
+          <div style="text-align: center; padding: 2rem; color: #7f8c8d;">
+            <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">📝 No attendance sessions found</p>
+            <p style="font-size: 0.9rem; color: #95a5a6;">This student has no attendance records yet.</p>
+          </div>
+        `;
+      } else {
+        renderSessionAttendanceTable(allSessionData);
+      }
+    } else {
+      sessionAttendanceContent.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: #e74c3c;">
+          <p>${response.message || 'No session attendance data found.'}</p>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Error fetching session attendance:', error);
+    sessionAttendanceContent.innerHTML = `
+      <div style="text-align: center; padding: 2rem; color: #e74c3c;">
+        <p style="font-weight: 600; margin-bottom: 0.5rem;">⚠️ Error loading session attendance data</p>
+        <p style="font-size: 0.9rem; color: #c0392b;">${error.message || 'Please try again later.'}</p>
+      </div>
+    `;
+  }
+}
+
+function renderSessionAttendanceTable(sessions, highlightQuery = '') {
+  const sessionAttendanceContent = document.querySelector('[data-session-attendance-content]');
+  
+  if (!sessionAttendanceContent) return;
+  
+  if (!sessions || sessions.length === 0) {
+    sessionAttendanceContent.innerHTML = `
+      <div style="text-align: center; padding: 2rem; color: #666;">
+        <p>No session records found.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const tableHTML = `
+    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <thead>
+        <tr style="background: #3498db; color: white;">
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Student ID</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Name</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Roll No</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Year</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Stream</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Division</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Date</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Status</th>
+          <th style="padding: 1rem; text-align: left; font-weight: 600;">Teacher</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sessions.map((session, index) => {
+          const isHighlighted = highlightQuery && shouldHighlightRow(session, highlightQuery);
+          const rowStyle = `
+            background: ${isHighlighted ? '#fff3cd' : index % 2 === 0 ? '#f8f9fa' : 'white'};
+            border-bottom: 1px solid #dee2e6;
+            ${isHighlighted ? 'box-shadow: inset 0 0 0 2px #ffc107;' : ''}
+          `;
+          const isPresent = session.status?.toUpperCase() === 'P';
+          const statusColor = isPresent ? '#27ae60' : '#e74c3c';
+          const statusText = isPresent ? 'Present' : 'Absent';
+          const formattedDate = session.date ? new Date(session.date).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          }) : 'N/A';
+          
+          return `
+            <tr style="${rowStyle}">
+              <td style="padding: 0.75rem;">${escapeHtml(session.student_id || 'N/A')}</td>
+              <td style="padding: 0.75rem;">${escapeHtml(session.student_name || 'N/A')}</td>
+              <td style="padding: 0.75rem;">${escapeHtml(session.roll_no || 'N/A')}</td>
+              <td style="padding: 0.75rem;">${escapeHtml(session.year || 'N/A')}</td>
+              <td style="padding: 0.75rem;">${escapeHtml(session.stream || 'N/A')}</td>
+              <td style="padding: 0.75rem;">${escapeHtml(session.division || 'N/A')}</td>
+              <td style="padding: 0.75rem;">${formattedDate}</td>
+              <td style="padding: 0.75rem;">
+                <span style="
+                  display: inline-block;
+                  padding: 0.25rem 0.75rem;
+                  border-radius: 12px;
+                  background: ${statusColor}15;
+                  color: ${statusColor};
+                  font-weight: 600;
+                  font-size: 0.85rem;
+                ">${statusText}</span>
+              </td>
+              <td style="padding: 0.75rem;">${escapeHtml(session.teacher || 'N/A')}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+
+  sessionAttendanceContent.innerHTML = tableHTML;
+}
+
+function shouldHighlightRow(session, query) {
+  const lowerQuery = query.toLowerCase();
+  // Convert status to display text for searching
+  const statusText = session.status?.toUpperCase() === 'P' ? 'present' : 'absent';
+  return (
+    (session.student_id || '').toLowerCase().includes(lowerQuery) ||
+    (session.student_name || '').toLowerCase().includes(lowerQuery) ||
+    (session.roll_no || '').toLowerCase().includes(lowerQuery) ||
+    (session.year || '').toLowerCase().includes(lowerQuery) ||
+    (session.stream || '').toLowerCase().includes(lowerQuery) ||
+    (session.division || '').toLowerCase().includes(lowerQuery) ||
+    statusText.includes(lowerQuery) ||
+    (session.status || '').toLowerCase().includes(lowerQuery) ||
+    (session.teacher || '').toLowerCase().includes(lowerQuery) ||
+    (session.date ? new Date(session.date).toLocaleDateString('en-IN').toLowerCase().includes(lowerQuery) : false)
+  );
+}
+
+function filterSessionAttendance() {
+  const sessionSearchInput = document.querySelector('[data-session-search-input]');
+  const query = sessionSearchInput?.value?.trim() || '';
+  
+  if (!query) {
+    renderSessionAttendanceTable(allSessionData);
+    return;
+  }
+
+  const filteredSessions = allSessionData.filter(session => 
+    shouldHighlightRow(session, query)
+  );
+
+  renderSessionAttendanceTable(filteredSessions, query);
+}
+
 // Event listeners for search functionality
 document.addEventListener('DOMContentLoaded', function() {
   const searchButton = document.getElementById('teacherSearchButton');
   const searchInput = document.getElementById('teacherSearchInput');
-  const studentModal = document.getElementById('student-details-modal');
+  const studentModal = document.querySelector('[data-student-details-modal]');
+  const sessionAttendanceModal = document.querySelector('[data-session-attendance-modal]');
+  const closeStudentDetailsBtn = document.querySelector('[data-close-student-details]');
+  const closeSessionAttendanceBtn = document.querySelector('[data-close-session-attendance]');
+  const sessionSearchInput = document.querySelector('[data-session-search-input]');
   
   // Search button click
   if (searchButton) {
@@ -2280,11 +2445,38 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Close modal when clicking outside
+  // Close student details modal
+  if (closeStudentDetailsBtn) {
+    closeStudentDetailsBtn.addEventListener('click', () => {
+      studentModal?.close();
+    });
+  }
+  
+  // Close session attendance modal
+  if (closeSessionAttendanceBtn) {
+    closeSessionAttendanceBtn.addEventListener('click', () => {
+      sessionAttendanceModal?.close();
+    });
+  }
+  
+  // Session search input
+  if (sessionSearchInput) {
+    sessionSearchInput.addEventListener('input', filterSessionAttendance);
+  }
+  
+  // Close modals when clicking outside
   if (studentModal) {
     studentModal.addEventListener('click', function(e) {
       if (e.target === studentModal) {
-        closeStudentModal();
+        studentModal.close();
+      }
+    });
+  }
+  
+  if (sessionAttendanceModal) {
+    sessionAttendanceModal.addEventListener('click', function(e) {
+      if (e.target === sessionAttendanceModal) {
+        sessionAttendanceModal.close();
       }
     });
   }

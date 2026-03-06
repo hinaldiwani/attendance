@@ -26,6 +26,7 @@ import {
   deleteDefaulterHistoryEntry,
   downloadDefaulterHistoryEntry,
   teacherSearchStudent,
+  getTeacherStudentSessionAttendance,
 } from "../controllers/teacherController.js";
 import {
   deleteAttendanceHistory,
@@ -73,5 +74,6 @@ router.get("/live-updates", (req, res) => {
 
 // Search route (teachers can only search students)
 router.get("/search/student/:studentId", teacherSearchStudent);
+router.get("/student/:studentId/sessions", getTeacherStudentSessionAttendance);
 
 export default router;

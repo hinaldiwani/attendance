@@ -1147,6 +1147,41 @@
     </div>
   </dialog>
 
+  <!-- Session Attendance Details Modal -->
+  <dialog data-session-attendance-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(95vw, 1200px);
+        max-height: 90vh;
+        overflow-y: auto;
+      ">
+    <div class="layout-grid" style="gap: 1.5rem">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Session Attendance Details</h3>
+        <button type="button" class="btn ghost" data-close-session-attendance>
+          Close
+        </button>
+      </div>
+      
+      <!-- Search Bar for Filtering -->
+      <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+        <input 
+          type="text" 
+          data-session-search-input
+          placeholder="Search by Student ID, Name, Roll No, Year, Stream, Division, Date, Status, or Teacher..." 
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem;"
+        />
+      </div>
+      
+      <div data-session-attendance-content style="overflow-x: auto;">
+        <div style="text-align: center; padding: 2rem; color: #666;">
+          Loading session attendance data...
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Teacher Details Modal -->
   <dialog data-teacher-details-modal style="
         border: none;

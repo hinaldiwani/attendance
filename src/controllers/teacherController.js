@@ -1473,7 +1473,7 @@ export async function downloadDefaulterHistoryEntry(req, res, next) {
 export async function teacherSearchStudent(req, res, next) {
   try {
     const { studentId } = req.params;
-    const teacherId = req.session?.teacherId;
+    const teacherId = req.session.user.id;
     
     if (!teacherId) {
       return res.status(401).json({ 
@@ -1499,7 +1499,7 @@ export async function teacherSearchStudent(req, res, next) {
         s.stream,
         s.division,
         s.roll_no,
-        COALESCE(SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END), 0) as attendance_count,
+        COALESCE(SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END), 0) as attendance_count,
         COUNT(DISTINCT ases.session_id) as total_sessions
       FROM student_details_db s
       INNER JOIN teacher_student_map tsm ON s.student_id = tsm.student_id
@@ -1524,5 +1524,75 @@ export async function teacherSearchStudent(req, res, next) {
   } catch (error) {
     console.error('Teacher search student error:', error);
     return next(error);
+  }
+}
+
+// Get student session attendance details (teacher access)
+export async function getTeacherStudentSessionAttendance(req, res, next) {
+  try {
+    const { studentId } = req.params;
+    const teacherId = req.session.user.id;
+    
+    console.log(`[Teacher Sessions] Teacher ${teacherId} requesting sessions for student ${studentId}`);
+    
+    if (!studentId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Student ID is required' 
+      });
+    }
+    
+    // Verify student is assigned to this teacher
+    const [mapping] = await pool.query(
+      `SELECT * FROM teacher_student_map WHERE teacher_id = ? AND student_id = ?`,
+      [teacherId, studentId]
+    );
+    
+    if (!mapping || mapping.length === 0) {
+      console.log(`[Teacher Sessions] Access denied - student ${studentId} not assigned to teacher ${teacherId}`);
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. Student not assigned to you.' 
+      });
+    }
+    
+    // Get all attendance sessions for the student
+    const [sessions] = await pool.query(
+      `SELECT 
+        s.student_id,
+        s.student_name,
+        s.roll_no,
+        s.year,
+        s.stream,
+        s.division,
+        ases.started_at as date,
+        COALESCE(ar.status, 'A') as status,
+        t.name as teacher,
+        ases.subject
+      FROM student_details_db s
+      CROSS JOIN attendance_sessions ases
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id AND ar.session_id = ases.session_id
+      LEFT JOIN teacher_details_db t ON ases.teacher_id = t.teacher_id AND ases.subject = t.subject
+      WHERE s.student_id = ?
+        AND ases.year = s.year
+        AND ases.stream = s.stream
+        AND FIND_IN_SET(s.division, ases.division) > 0
+      ORDER BY ases.started_at DESC`,
+      [studentId]
+    );
+    
+    console.log(`[Teacher Sessions] Found ${sessions.length} session records for student ${studentId}`);
+    
+    return res.json({
+      success: true,
+      data: sessions
+    });
+  } catch (error) {
+    console.error('[Teacher Sessions] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching session attendance data',
+      error: error.message
+    });
   }
 }
