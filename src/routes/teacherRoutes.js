@@ -17,6 +17,7 @@ import {
   exportAttendanceExcel,
   teacherGetDefaulterList,
   teacherDownloadDefaulterList,
+  teacherGetAttendanceDates,
   getStreamsAndDivisions,
   getSubjectsForClass,
   saveDefaulterHistory,
@@ -24,6 +25,7 @@ import {
   viewDefaulterHistoryEntry,
   deleteDefaulterHistoryEntry,
   downloadDefaulterHistoryEntry,
+  teacherSearchStudent,
 } from "../controllers/teacherController.js";
 import {
   deleteAttendanceHistory,
@@ -55,6 +57,7 @@ router.post("/attendance/export-excel", exportAttendanceExcel);
 // Defaulter management routes
 router.get("/defaulters", teacherGetDefaulterList);
 router.get("/defaulters/download", teacherDownloadDefaulterList);
+router.get("/attendance-dates", teacherGetAttendanceDates);
 
 // Defaulter history routes
 router.post("/defaulters/history", saveDefaulterHistory);
@@ -67,5 +70,8 @@ router.delete("/defaulters/history/:id", deleteDefaulterHistoryEntry);
 router.get("/live-updates", (req, res) => {
   notificationService.addConnection(req.session.user.id, "teacher", res, req);
 });
+
+// Search route (teachers can only search students)
+router.get("/search/student/:studentId", teacherSearchStudent);
 
 export default router;

@@ -19,6 +19,7 @@ import {
   getDefaulterList,
   downloadDefaulterList,
   updateMonthlyAttendance,
+  getAttendanceDates,
   getTeachersInfo,
   getStudentsInfo,
   getStreamsDivisions,
@@ -37,6 +38,8 @@ import {
   viewAdminDefaulterHistoryEntry,
   deleteAdminDefaulterHistoryEntry,
   downloadAdminDefaulterHistoryEntry,
+  searchStudent,
+  searchTeacher,
 } from "../controllers/adminController.js";
 import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 import notificationService from "../services/notificationService.js";
@@ -86,6 +89,7 @@ router.get(
   downloadAdminDefaulterHistoryEntry,
 );
 router.delete("/defaulters/history/:id", deleteAdminDefaulterHistoryEntry);
+router.get("/attendance-dates", getAttendanceDates);
 
 // Teacher and Student information routes
 router.get("/teachers-info", getTeachersInfo);
@@ -108,5 +112,9 @@ router.get("/live-updates", (req, res) => {
   notificationService.addConnection(req.session.user.id, "admin", res, req);
 });
 router.post("/attendance/update-monthly", updateMonthlyAttendance);
+
+// Search routes
+router.get("/search/student/:studentId", searchStudent);
+router.get("/search/teacher/:teacherId", searchTeacher);
 
 export default router;

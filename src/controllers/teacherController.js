@@ -1073,6 +1073,8 @@ export async function teacherGetDefaulterList(req, res, next) {
       division,
       type = "monthly",
       threshold = 75,
+      start_date,
+      end_date,
     } = req.query;
 
     // Get teacher's details to fall back to their assigned stream
@@ -1105,6 +1107,8 @@ export async function teacherGetDefaulterList(req, res, next) {
         division,
         teacherId: teacherId, // Pass teacherId to filter based on mappings
         threshold: parseFloat(threshold),
+        start_date,
+        end_date,
       });
     }
 
@@ -1164,6 +1168,8 @@ export async function teacherDownloadDefaulterList(req, res, next) {
       subject,
       type = "monthly",
       threshold = 75,
+      start_date,
+      end_date,
     } = req.query;
 
     // Get teacher's details
@@ -1199,6 +1205,8 @@ export async function teacherDownloadDefaulterList(req, res, next) {
         division,
         teacherId: teacherId, // Pass teacherId to filter based on mappings
         threshold: parseFloat(threshold),
+        start_date,
+        end_date,
       });
     }
 
@@ -1251,6 +1259,45 @@ export async function teacherDownloadDefaulterList(req, res, next) {
     res.end();
   } catch (error) {
     return next(error);
+  }
+}
+
+export async function teacherGetAttendanceDates(req, res, next) {
+  try {
+    const teacherId = req.session.user.id;
+    const { month, year } = req.query;
+    
+    if (!month || month === "ALL") {
+      return res.json({ dates: [] });
+    }
+
+    const params = [teacherId];
+    let query = `
+      SELECT DISTINCT DATE(started_at) as attendance_date
+      FROM attendance_sessions
+      WHERE teacher_id = ?
+        AND MONTH(started_at) = ?
+        AND started_at IS NOT NULL
+    `;
+    params.push(parseInt(month));
+
+    if (year && year !== "ALL") {
+      query += ` AND YEAR(started_at) = ?`;
+      params.push(parseInt(year));
+    }
+
+    query += ` ORDER BY attendance_date ASC`;
+
+    const [rows] = await pool.query(query, params);
+    const dates = rows.map(row => row.attendance_date);
+
+    return res.json({ dates });
+  } catch (error) {
+    console.error("Failed to fetch attendance dates:", error);
+    return res.status(500).json({
+      message: "Failed to fetch attendance dates",
+      error: error.message,
+    });
   }
 }
 
@@ -1418,6 +1465,64 @@ export async function downloadDefaulterHistoryEntry(req, res, next) {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
+    return next(error);
+  }
+}
+
+// Search for student by ID (teachers can only search their assigned students)
+export async function teacherSearchStudent(req, res, next) {
+  try {
+    const { studentId } = req.params;
+    const teacherId = req.session?.teacherId;
+    
+    if (!teacherId) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Unauthorized' 
+      });
+    }
+    
+    if (!studentId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Student ID is required' 
+      });
+    }
+    
+    // Get student details with attendance summary
+    // Check if student is assigned to this teacher
+    const [students] = await pool.query(
+      `SELECT 
+        s.student_id,
+        s.student_name,
+        s.year,
+        s.stream,
+        s.division,
+        s.roll_no,
+        COALESCE(SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END), 0) as attendance_count,
+        COUNT(DISTINCT ases.session_id) as total_sessions
+      FROM student_details_db s
+      INNER JOIN teacher_student_map tsm ON s.student_id = tsm.student_id
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
+      LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
+      WHERE s.student_id = ? AND tsm.teacher_id = ?
+      GROUP BY s.student_id`,
+      [studentId, teacherId]
+    );
+    
+    if (!students || students.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Student not found or not assigned to you' 
+      });
+    }
+    
+    return res.json({
+      success: true,
+      data: students[0]
+    });
+  } catch (error) {
+    console.error('Teacher search student error:', error);
     return next(error);
   }
 }

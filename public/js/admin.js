@@ -614,6 +614,46 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Refresh Mappings button handler
+  const refreshMappingsButton = document.querySelector("[data-refresh-mappings]");
+  refreshMappingsButton?.addEventListener("click", async () => {
+    const confirmed = confirm(
+      "This will refresh all student-teacher mappings based on:\n\n" +
+      "• Year\n" +
+      "• Stream\n" +
+      "• Division\n\n" +
+      "Old mappings will be cleared and new ones will be created automatically.\n\n" +
+      "Do you want to proceed?",
+    );
+
+    if (!confirmed) return;
+
+    toggleLoading(refreshMappingsButton, true);
+    try {
+      const result = await apiFetch("/api/admin/auto-map-students", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      showToast({
+        title: "Mappings refreshed successfully",
+        message: `Mapped ${result.mapped || 0} student-teacher relationships`,
+        type: "success",
+      });
+
+      // Refresh the dashboard to show updated numbers
+      await loadStats();
+    } catch (error) {
+      showToast({
+        title: "Mapping refresh failed",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(refreshMappingsButton, false);
+    }
+  });
+
   clearHistoryButton?.addEventListener("click", async () => {
     const confirmed = confirm(
       "⚠️ WARNING: This will permanently delete ALL attendance history records including:\n\n" +
@@ -740,7 +780,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const tabButtons = document.querySelectorAll("[data-defaulter-tab]");
   const tabContents = document.querySelectorAll("[data-tab-content]");
 
-  const tabs = ["year", "stream", "division", "month", "percentage"];
+  const tabs = ["year", "stream", "division", "month", "date", "percentage"];
   let currentTabIndex = 0;
 
   // Open modal
@@ -820,7 +860,99 @@ window.addEventListener("DOMContentLoaded", () => {
     if (defaulterExportDirectButton)
       defaulterExportDirectButton.style.display =
         index === tabs.length - 1 ? "block" : "none";
+
+    // Auto-load dates when Date tab is shown (index 4)
+    if (index === 4) {
+      loadAvailableDates();
+    }
   }
+
+  // Fetch available dates based on selected month
+  async function loadAvailableDates() {
+    const monthSelect = document.getElementById("defaulterMonth");
+    const startDateSelect = document.getElementById("defaulterStartDate");
+    const endDateSelect = document.getElementById("defaulterEndDate");
+    const yearSelect = document.getElementById("defaulterYear");
+    
+    if (!startDateSelect || !endDateSelect) {
+      console.warn("Date selectors not found");
+      return;
+    }
+    
+    const yearValue = yearSelect?.value;
+    const month = monthSelect?.value;
+
+    if (!month || month === "ALL") {
+      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
+      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
+      return;
+    }
+
+    try {
+      // Generate dates for the selected month
+      // Extract year - handle both academic year formats (FY, SY, TY) and actual years
+      let year = new Date().getFullYear(); // Default to current year
+      
+      if (yearValue && yearValue !== "ALL") {
+        // Try to extract a 4-digit year from the value
+        const yearMatch = yearValue.match(/\d{4}/);
+        if (yearMatch) {
+          year = parseInt(yearMatch[0]);
+        }
+        // Otherwise use current year for academic year selections (FY, SY, TY)
+      }
+      
+      const monthNum = parseInt(month);
+      
+      // Get number of days in the month
+      const daysInMonth = new Date(year, monthNum, 0).getDate();
+      const dates = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, monthNum - 1, day);
+        const dateStr = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+        dates.push(dateStr);
+      }
+
+      // Populate start date
+      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
+      dates.forEach(date => {
+        const option = document.createElement("option");
+        option.value = date;
+        option.textContent = new Date(date).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+        startDateSelect.appendChild(option);
+      });
+
+      // Populate end date
+      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
+      dates.forEach(date => {
+        const option = document.createElement("option");
+        option.value = date;
+        option.textContent = new Date(date).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+        endDateSelect.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Failed to generate dates:", error);
+      startDateSelect.innerHTML = '<option value="">Error generating dates</option>';
+      endDateSelect.innerHTML = '<option value="">Error generating dates</option>';
+    }
+  }
+
+  // Add month change listener
+  const monthSelect = document.getElementById("defaulterMonth");
+  monthSelect?.addEventListener("change", loadAvailableDates);
+
+  // Add year change listener
+  const yearSelect = document.getElementById("defaulterYear");
+  yearSelect?.addEventListener("change", loadAvailableDates);
 
   // Tab button clicks
   tabButtons.forEach((btn, index) => {
@@ -873,6 +1005,8 @@ window.addEventListener("DOMContentLoaded", () => {
     const stream = formData.get("stream");
     const division = formData.get("division");
     const month = formData.get("month");
+    const startDate = formData.get("start_date");
+    const endDate = formData.get("end_date");
     const threshold = formData.get("threshold");
 
     // Build query parameters
@@ -885,6 +1019,8 @@ window.addEventListener("DOMContentLoaded", () => {
     if (year && year !== "ALL") params.append("year", year);
     if (stream && stream !== "ALL") params.append("stream", stream);
     if (division && division !== "ALL") params.append("division", division);
+    if (startDate) params.append("start_date", startDate);
+    if (endDate) params.append("end_date", endDate);
 
     try {
       toggleLoading(defaulterGenerateButton, true);
@@ -976,6 +1112,8 @@ window.addEventListener("DOMContentLoaded", () => {
     const stream = formData.get("stream");
     const division = formData.get("division");
     const month = formData.get("month");
+    const startDate = formData.get("start_date");
+    const endDate = formData.get("end_date");
     const threshold = formData.get("threshold");
 
     if (!threshold) {
@@ -995,6 +1133,8 @@ window.addEventListener("DOMContentLoaded", () => {
     if (year && year !== "ALL") params.append("year", year);
     if (stream && stream !== "ALL") params.append("stream", stream);
     if (division && division !== "ALL") params.append("division", division);
+    if (startDate) params.append("start_date", startDate);
+    if (endDate) params.append("end_date", endDate);
 
     try {
       toggleLoading(defaulterExportDirectButton, true);
@@ -2289,6 +2429,216 @@ window.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.error("❌ setupStudentFilters failed:", err);
     }
+
+    // ────────────────────────────────────────────────────────────────────────────────
+    // Search Functionality
+    // ────────────────────────────────────────────────────────────────────────────────
+    const searchInput = document.getElementById("adminSearchInput");
+    const searchBtn = document.querySelector("[data-search-btn]");
+    const studentDetailsModal = document.querySelector("[data-student-details-modal]");
+    const teacherDetailsModal = document.querySelector("[data-teacher-details-modal]");
+    const studentDetailsContent = document.querySelector("[data-student-details-content]");
+    const teacherDetailsContent = document.querySelector("[data-teacher-details-content]");
+    const closeStudentDetailsBtn = document.querySelector("[data-close-student-details]");
+    const closeTeacherDetailsBtn = document.querySelector("[data-close-teacher-details]");
+
+    async function performSearch() {
+      const searchQuery = searchInput?.value?.trim();
+      
+      if (!searchQuery) {
+        showToast({
+          title: "Search Required",
+          message: "Please enter a Student ID or Teacher ID",
+          type: "warning"
+        });
+        return;
+      }
+
+      try {
+        // Try to search for student first
+        const studentResponse = await apiFetch(`/api/admin/search/student/${encodeURIComponent(searchQuery)}`);
+        
+        if (studentResponse.success && studentResponse.data) {
+          // Calculate attendance percentage
+          const student = studentResponse.data;
+          student.attendance_percentage = student.total_sessions > 0 
+            ? (student.attendance_count / student.total_sessions) * 100 
+            : 0;
+          student.total_lectures = student.total_sessions || 0;
+          student.attended_lectures = student.attendance_count || 0;
+          displayStudentDetails(student);
+          return;
+        }
+      } catch (error) {
+        console.log("Student not found, trying teacher...");
+      }
+
+      try {
+        // Try to search for teacher
+        const teacherResponse = await apiFetch(`/api/admin/search/teacher/${encodeURIComponent(searchQuery)}`);
+        
+        if (teacherResponse.success && teacherResponse.data) {
+          const teacher = teacherResponse.data;
+          teacher.student_count = teacher.assigned_students || 0;
+          displayTeacherDetails(teacher);
+          return;
+        }
+      } catch (error) {
+        console.log("Teacher not found");
+      }
+
+      // Neither found
+      showToast({
+        title: "Not Found",
+        message: `No student or teacher found with ID: ${searchQuery}`,
+        type: "error"
+      });
+    }
+
+    function displayStudentDetails(student) {
+      const attendancePercentage = student.attendance_percentage || 0;
+      const attendanceColor = attendancePercentage >= 75 ? '#27ae60' : '#e74c3c';
+      
+      studentDetailsContent.innerHTML = `
+        <div class="card" style="background: #f8f9fa; padding: 1.5rem;">
+          <div style="display: grid; gap: 1rem;">
+            <div style="text-align: center; padding: 1rem; background: white; border-radius: 8px;">
+              <h2 style="margin: 0; color: #2c3e50;">${student.student_name || 'N/A'}</h2>
+              <p style="margin: 0.5rem 0 0; color: #7f8c8d; font-size: 0.9rem;">
+                ID: ${student.student_id || 'N/A'}
+              </p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Roll No</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${student.roll_no || 'N/A'}</div>
+              </div>
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Year</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${student.year || 'N/A'}</div>
+              </div>
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Stream</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${student.stream || 'N/A'}</div>
+              </div>
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Division</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${student.division || 'N/A'}</div>
+              </div>
+            </div>
+
+            <div style="background: ${attendanceColor}15; border: 2px solid ${attendanceColor}; padding: 1.5rem; border-radius: 12px; text-align: center;">
+              <div style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 0.5rem;">Overall Attendance</div>
+              <div style="font-size: 2.5rem; font-weight: 700; color: ${attendanceColor};">
+                ${attendancePercentage.toFixed(2)}%
+              </div>
+              <div style="margin-top: 0.5rem; color: #7f8c8d; font-size: 0.85rem;">
+                ${student.total_lectures || 0} total lectures | ${student.attended_lectures || 0} attended
+              </div>
+            </div>
+
+            ${student.subjects ? `
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.5rem;">Subjects</div>
+                <div style="font-size: 0.95rem;">${student.subjects}</div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+      
+      studentDetailsModal?.showModal();
+    }
+
+    function displayTeacherDetails(teacher) {
+      teacherDetailsContent.innerHTML = `
+        <div class="card" style="background: #f8f9fa; padding: 1.5rem;">
+          <div style="display: grid; gap: 1rem;">
+            <div style="text-align: center; padding: 1rem; background: white; border-radius: 8px;">
+              <h2 style="margin: 0; color: #2c3e50;">${teacher.name || 'N/A'}</h2>
+              <p style="margin: 0.5rem 0 0; color: #7f8c8d; font-size: 0.9rem;">
+                ID: ${teacher.teacher_id || 'N/A'}
+              </p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Subject</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${teacher.subject || 'N/A'}</div>
+              </div>
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Year</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${teacher.year || 'N/A'}</div>
+              </div>
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Stream</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${teacher.stream || 'N/A'}</div>
+              </div>
+              <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Semester</div>
+                <div style="font-size: 1.1rem; font-weight: 600;">${teacher.semester || 'N/A'}</div>
+              </div>
+            </div>
+
+            <div style="background: white; padding: 1rem; border-radius: 8px;">
+              <div style="color: #7f8c8d; font-size: 0.85rem; margin-bottom: 0.25rem;">Division</div>
+              <div style="font-size: 1.1rem; font-weight: 600;">${teacher.division || 'N/A'}</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              ${teacher.student_count !== undefined ? `
+                <div style="background: #3498db15; border: 2px solid #3498db; padding: 1.5rem; border-radius: 12px; text-align: center;">
+                  <div style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 0.5rem;">Assigned Students</div>
+                  <div style="font-size: 2.5rem; font-weight: 700; color: #3498db;">
+                    ${teacher.student_count}
+                  </div>
+                </div>
+              ` : ''}
+              
+              ${teacher.sessions_taken !== undefined ? `
+                <div style="background: #9b59b615; border: 2px solid #9b59b6; padding: 1.5rem; border-radius: 12px; text-align: center;">
+                  <div style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 0.5rem;">Sessions Taken</div>
+                  <div style="font-size: 2.5rem; font-weight: 700; color: #9b59b6;">
+                    ${teacher.sessions_taken}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      teacherDetailsModal?.showModal();
+    }
+
+    // Event listeners
+    searchBtn?.addEventListener("click", performSearch);
+    searchInput?.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        performSearch();
+      }
+    });
+
+    closeStudentDetailsBtn?.addEventListener("click", () => {
+      studentDetailsModal?.close();
+    });
+
+    closeTeacherDetailsBtn?.addEventListener("click", () => {
+      teacherDetailsModal?.close();
+    });
+
+    studentDetailsModal?.addEventListener("click", (e) => {
+      if (e.target === studentDetailsModal) {
+        studentDetailsModal.close();
+      }
+    });
+
+    teacherDetailsModal?.addEventListener("click", (e) => {
+      if (e.target === teacherDetailsModal) {
+        teacherDetailsModal.close();
+      }
+    });
 
     console.log("✅ Initialization complete!");
   } catch (error) {

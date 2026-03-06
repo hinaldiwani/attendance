@@ -696,6 +696,8 @@ export async function getDefaulterList(req, res, next) {
       subject,
       type = "monthly",
       threshold = 75,
+      start_date,
+      end_date,
     } = req.query;
 
     let defaulters;
@@ -714,6 +716,8 @@ export async function getDefaulterList(req, res, next) {
         division,
         subject,
         threshold: parseFloat(threshold),
+        start_date,
+        end_date,
       });
     }
 
@@ -786,6 +790,8 @@ export async function downloadDefaulterList(req, res, next) {
       subject,
       type = "monthly",
       threshold = 75,
+      start_date,
+      end_date,
     } = req.query;
 
     let defaulters;
@@ -804,6 +810,8 @@ export async function downloadDefaulterList(req, res, next) {
         division,
         subject,
         threshold: parseFloat(threshold),
+        start_date,
+        end_date,
       });
     }
 
@@ -891,6 +899,43 @@ export async function updateMonthlyAttendance(req, res, next) {
     });
   } catch (error) {
     return next(error);
+  }
+}
+
+export async function getAttendanceDates(req, res, next) {
+  try {
+    const { month, year } = req.query;
+    
+    if (!month || month === "ALL") {
+      return res.json({ dates: [] });
+    }
+
+    const params = [];
+    let query = `
+      SELECT DISTINCT DATE(started_at) as attendance_date
+      FROM attendance_sessions
+      WHERE MONTH(started_at) = ?
+        AND started_at IS NOT NULL
+    `;
+    params.push(parseInt(month));
+
+    if (year && year !== "ALL") {
+      query += ` AND YEAR(started_at) = ?`;
+      params.push(parseInt(year));
+    }
+
+    query += ` ORDER BY attendance_date ASC`;
+
+    const [rows] = await pool.query(query, params);
+    const dates = rows.map(row => row.attendance_date);
+
+    return res.json({ dates });
+  } catch (error) {
+    console.error("Failed to fetch attendance dates:", error);
+    return res.status(500).json({
+      message: "Failed to fetch attendance dates",
+      error: error.message,
+    });
   }
 }
 
@@ -1566,6 +1611,102 @@ export async function downloadAdminDefaulterHistoryEntry(req, res, next) {
     res.end();
   } catch (error) {
     console.error("Admin download defaulter history entry error:", error);
+    return next(error);
+  }
+}
+
+// Search for student by ID
+export async function searchStudent(req, res, next) {
+  try {
+    const { studentId } = req.params;
+    
+    if (!studentId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Student ID is required' 
+      });
+    }
+    
+    // Get student details with attendance summary
+    const [students] = await pool.query(
+      `SELECT 
+        s.student_id,
+        s.student_name,
+        s.year,
+        s.stream,
+        s.division,
+        s.roll_no,
+        COALESCE(SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END), 0) as attendance_count,
+        COUNT(DISTINCT ases.session_id) as total_sessions
+      FROM student_details_db s
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
+      LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
+      WHERE s.student_id = ?
+      GROUP BY s.student_id`,
+      [studentId]
+    );
+    
+    if (!students || students.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Student not found' 
+      });
+    }
+    
+    return res.json({
+      success: true,
+      data: students[0]
+    });
+  } catch (error) {
+    console.error('Search student error:', error);
+    return next(error);
+  }
+}
+
+// Search for teacher by ID
+export async function searchTeacher(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    
+    if (!teacherId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Teacher ID is required' 
+      });
+    }
+    
+    // Get teacher details with assigned students count
+    // Use DISTINCT to get unique teacher and subquery for student count
+    const [teachers] = await pool.query(
+      `SELECT 
+        t.teacher_id,
+        t.name,
+        GROUP_CONCAT(DISTINCT t.subject ORDER BY t.subject SEPARATOR ', ') as subject,
+        GROUP_CONCAT(DISTINCT t.year ORDER BY t.year SEPARATOR ', ') as year,
+        GROUP_CONCAT(DISTINCT t.stream ORDER BY t.stream SEPARATOR ', ') as stream,
+        GROUP_CONCAT(DISTINCT t.division ORDER BY t.division SEPARATOR ', ') as division,
+        GROUP_CONCAT(DISTINCT t.semester ORDER BY t.semester SEPARATOR ', ') as semester,
+        (SELECT COUNT(DISTINCT student_id) FROM teacher_student_map WHERE teacher_id = ?) as assigned_students,
+        (SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = ?) as sessions_taken
+      FROM teacher_details_db t
+      WHERE t.teacher_id = ?
+      GROUP BY t.teacher_id, t.name`,
+      [teacherId, teacherId, teacherId]
+    );
+    
+    if (!teachers || teachers.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Teacher not found' 
+      });
+    }
+    
+    return res.json({
+      success: true,
+      data: teachers[0]
+    });
+  } catch (error) {
+    console.error('Search teacher error:', error);
     return next(error);
   }
 }

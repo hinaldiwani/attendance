@@ -5,9 +5,15 @@ class DefaulterService {
     /**
      * Get defaulter list for a specific month with custom threshold
      * NOW CALCULATES OVERALL ATTENDANCE ACROSS ALL SUBJECTS
+     * Supports date range filtering when start_date or end_date are provided
      */
     async getDefaulterList(filters = {}) {
-        const { month, year, stream, division, subject, threshold = 75, teacherId = null } = filters;
+        const { month, year, stream, division, subject, threshold = 75, teacherId = null, start_date, end_date } = filters;
+
+        // If date filtering is requested, use a different query based on attendance_sessions
+        if (start_date || end_date) {
+            return this.getDefaulterListByDateRange(filters);
+        }
 
         // NEW APPROACH: Calculate overall attendance across ALL subjects for each student
         let query = `
@@ -84,6 +90,92 @@ class DefaulterService {
       GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division, mas.month, mas.year_value
       HAVING attendance_percentage < ?
       ORDER BY s.year DESC, mas.month DESC, s.stream, s.division, s.student_name
+    `;
+
+        params.push(threshold);
+
+        const [rows] = await pool.query(query, params);
+        return rows;
+    }
+
+    /**
+     * Get defaulter list filtered by date range
+     * Calculates attendance based on actual attendance sessions within the date range
+     */
+    async getDefaulterListByDateRange(filters = {}) {
+        const { month, year, stream, division, threshold = 75, teacherId = null, start_date, end_date } = filters;
+
+        let query = `
+      SELECT 
+        s.student_id,
+        s.student_name,
+        s.roll_no,
+        s.year,
+        s.stream,
+        s.division,
+        COUNT(DISTINCT ases.session_id) as total_lectures,
+        SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END) as attended_lectures,
+        ROUND((SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT ases.session_id), 0)) * 100, 2) as attendance_percentage,
+        GROUP_CONCAT(DISTINCT ases.subject ORDER BY ases.subject SEPARATOR ', ') as subjects,
+        COUNT(DISTINCT ases.subject) as subject_count
+      FROM student_details_db s
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
+      LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
+    `;
+
+        const params = [];
+
+        // Build WHERE clause
+        let whereClause = ' WHERE 1=1';
+
+        // If teacherId is provided, filter students based on teacher-student mappings
+        if (teacherId) {
+            query += `
+      INNER JOIN teacher_student_map tsm ON s.student_id = tsm.student_id
+      `;
+            whereClause += ` AND tsm.teacher_id = ?`;
+            params.push(teacherId);
+        }
+
+        // Date filtering
+        if (start_date) {
+            whereClause += ` AND DATE(ases.started_at) >= ?`;
+            params.push(start_date);
+        }
+        
+        if (end_date) {
+            whereClause += ` AND DATE(ases.started_at) <= ?`;
+            params.push(end_date);
+        }
+
+        // Month filtering (only if no specific dates provided, or to narrow down date range)
+        if (month && !start_date && !end_date) {
+            whereClause += ` AND MONTH(ases.started_at) = ?`;
+            params.push(month);
+        }
+
+        if (year) {
+            whereClause += ` AND YEAR(ases.started_at) = ?`;
+            params.push(year);
+        }
+
+        if (stream) {
+            whereClause += ` AND s.stream = ?`;
+            params.push(stream);
+        }
+
+        if (division) {
+            whereClause += ` AND s.division = ?`;
+            params.push(division);
+        }
+
+        query += whereClause;
+
+        // Group by student to calculate overall attendance
+        query += ` 
+      GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division
+      HAVING total_lectures > 0 AND attendance_percentage < ?
+      ORDER BY s.year DESC, s.stream, s.division, s.student_name
     `;
 
         params.push(threshold);

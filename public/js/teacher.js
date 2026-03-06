@@ -1618,7 +1618,7 @@ function initDefaulterButton() {
   const tabButtons = document.querySelectorAll("[data-defaulter-tab]");
   const tabContents = document.querySelectorAll("[data-tab-content]");
 
-  const tabs = ["year", "stream", "division", "month", "percentage"];
+  const tabs = ["year", "stream", "division", "month", "date", "percentage"];
   let currentTabIndex = 0;
 
   // Open modal
@@ -1707,7 +1707,99 @@ function initDefaulterButton() {
       defaulterViewButton.style.display = isLast ? "block" : "none";
     if (defaulterExportButton)
       defaulterExportButton.style.display = isLast ? "block" : "none";
+
+    // Auto-load dates when Date tab is shown (index 4)
+    if (index === 4) {
+      loadAvailableDates();
+    }
   }
+
+  // Fetch available dates based on selected month
+  async function loadAvailableDates() {
+    const monthSelect = document.getElementById("defaulterMonth");
+    const startDateSelect = document.getElementById("defaulterStartDate");
+    const endDateSelect = document.getElementById("defaulterEndDate");
+    const yearSelect = document.getElementById("defaulterYear");
+    
+    if (!startDateSelect || !endDateSelect) {
+      console.warn("Date selectors not found");
+      return;
+    }
+    
+    const yearValue = yearSelect?.value;
+    const month = monthSelect?.value;
+
+    if (!month || month === "ALL") {
+      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
+      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
+      return;
+    }
+
+    try {
+      // Generate dates for the selected month
+      // Extract year - handle both academic year formats (FY, SY, TY) and actual years
+      let year = new Date().getFullYear(); // Default to current year
+      
+      if (yearValue && yearValue !== "ALL") {
+        // Try to extract a 4-digit year from the value
+        const yearMatch = yearValue.match(/\d{4}/);
+        if (yearMatch) {
+          year = parseInt(yearMatch[0]);
+        }
+        // Otherwise use current year for academic year selections (FY, SY, TY)
+      }
+      
+      const monthNum = parseInt(month);
+      
+      // Get number of days in the month
+      const daysInMonth = new Date(year, monthNum, 0).getDate();
+      const dates = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, monthNum - 1, day);
+        const dateStr = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+        dates.push(dateStr);
+      }
+
+      // Populate start date
+      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
+      dates.forEach(date => {
+        const option = document.createElement("option");
+        option.value = date;
+        option.textContent = new Date(date).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+        startDateSelect.appendChild(option);
+      });
+
+      // Populate end date
+      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
+      dates.forEach(date => {
+        const option = document.createElement("option");
+        option.value = date;
+        option.textContent = new Date(date).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+        endDateSelect.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Failed to generate dates:", error);
+      startDateSelect.innerHTML = '<option value="">Error generating dates</option>';
+      endDateSelect.innerHTML = '<option value="">Error generating dates</option>';
+    }
+  }
+
+  // Add month change listener  
+  const monthSelect = document.getElementById("defaulterMonth");
+  monthSelect?.addEventListener("change", loadAvailableDates);
+
+  // Add year change listener
+  const yearSelect = document.getElementById("defaulterYear");
+  yearSelect?.addEventListener("change", loadAvailableDates);
 
   // Tab button clicks
   tabButtons.forEach((btn, index) => {
@@ -1753,6 +1845,8 @@ function initDefaulterButton() {
     const stream = formData.get("stream");
     const division = formData.get("division");
     const month = formData.get("month");
+    const startDate = formData.get("start_date");
+    const endDate = formData.get("end_date");
     const threshold = formData.get("threshold");
 
     const params = new URLSearchParams({ threshold: parseFloat(threshold) });
@@ -1760,7 +1854,9 @@ function initDefaulterButton() {
     if (year && year !== "ALL") params.append("year", year);
     if (stream && stream !== "ALL") params.append("stream", stream);
     if (division && division !== "ALL") params.append("division", division);
-    return { params, year, stream, division, month, threshold };
+    if (startDate) params.append("start_date", startDate);
+    if (endDate) params.append("end_date", endDate);
+    return { params, year, stream, division, month, startDate, endDate, threshold };
   }
 
   // ── VIEW button: fetch JSON and show results modal ──────────────────────
@@ -2026,6 +2122,171 @@ document.addEventListener("visibilitychange", () => {
     if (!liveEventSource) {
       setupLiveUpdates();
     }
+  }
+});
+
+// Search functionality for student lookup
+function performSearch() {
+  const searchInput = document.getElementById('teacherSearchInput');
+  const searchValue = searchInput.value.trim();
+  
+  if (!searchValue) {
+    showToast('Please enter a Student ID', 'error');
+    return;
+  }
+  
+  // Search for student only (teachers cannot search other teachers)
+  searchStudent(searchValue);
+}
+
+async function searchStudent(studentId) {
+  try {
+    const response = await apiFetch(`/api/teacher/search/student/${encodeURIComponent(studentId)}`);
+    
+    if (response.success && response.data) {
+      displayStudentDetails(response.data);
+    } else {
+      showToast(response.message || 'Student not found', 'error');
+    }
+  } catch (error) {
+    console.error('Error searching student:', error);
+    showToast('Error searching for student. Please try again.', 'error');
+  }
+}
+
+function displayStudentDetails(student) {
+  const modal = document.getElementById('student-details-modal');
+  const modalContent = modal.querySelector('.modal-content');
+  
+  // Calculate attendance percentage
+  const attendancePercentage = student.total_sessions > 0 
+    ? ((student.attendance_count / student.total_sessions) * 100).toFixed(2)
+    : '0.00';
+  
+  // Determine attendance status
+  let attendanceStatus = 'Good';
+  let statusColor = '#4caf50';
+  if (parseFloat(attendancePercentage) < 50) {
+    attendanceStatus = 'Poor';
+    statusColor = '#f44336';
+  } else if (parseFloat(attendancePercentage) < 75) {
+    attendanceStatus = 'Average';
+    statusColor = '#ff9800';
+  }
+  
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2>Student Details</h2>
+      <button class="close-modal" onclick="closeStudentModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="details-section">
+        <div class="detail-row">
+          <span class="detail-label">Student ID:</span>
+          <span class="detail-value">${escapeHtml(student.student_id)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Name:</span>
+          <span class="detail-value">${escapeHtml(student.student_name)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Year:</span>
+          <span class="detail-value">${escapeHtml(student.year)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Stream:</span>
+          <span class="detail-value">${escapeHtml(student.stream)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Division:</span>
+          <span class="detail-value">${escapeHtml(student.division)}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Roll No:</span>
+          <span class="detail-value">${escapeHtml(student.roll_no || 'N/A')}</span>
+        </div>
+      </div>
+      
+      <div class="attendance-highlight" style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, ${statusColor}22 0%, ${statusColor}11 100%); border-left: 4px solid ${statusColor}; border-radius: 8px;">
+        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">Attendance Summary</h3>
+        <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 15px;">
+          <div style="text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; color: ${statusColor};">${attendancePercentage}%</div>
+            <div style="color: #666; margin-top: 5px; font-size: 14px;">Attendance Rate</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; color: #2196f3;">${student.attendance_count || 0}</div>
+            <div style="color: #666; margin-top: 5px; font-size: 14px;">Present</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; color: #f44336;">${(student.total_sessions || 0) - (student.attendance_count || 0)}</div>
+            <div style="color: #666; margin-top: 5px; font-size: 14px;">Absent</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; color: #9e9e9e;">${student.total_sessions || 0}</div>
+            <div style="color: #666; margin-top: 5px; font-size: 14px;">Total Sessions</div>
+          </div>
+        </div>
+        <div style="margin-top: 15px; text-align: center;">
+          <span style="display: inline-block; padding: 8px 20px; background: ${statusColor}; color: white; border-radius: 20px; font-weight: 600; font-size: 14px;">
+            ${attendanceStatus} Attendance
+          </span>
+        </div>
+      </div>
+      
+      ${student.contact ? `
+        <div class="details-section" style="margin-top: 20px;">
+          <div class="detail-row">
+            <span class="detail-label">Contact:</span>
+            <span class="detail-value">${escapeHtml(student.contact)}</span>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+  
+  modal.style.display = 'flex';
+}
+
+function closeStudentModal() {
+  const modal = document.getElementById('student-details-modal');
+  modal.style.display = 'none';
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Event listeners for search functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const searchButton = document.getElementById('teacherSearchButton');
+  const searchInput = document.getElementById('teacherSearchInput');
+  const studentModal = document.getElementById('student-details-modal');
+  
+  // Search button click
+  if (searchButton) {
+    searchButton.addEventListener('click', performSearch);
+  }
+  
+  // Enter key in search input
+  if (searchInput) {
+    searchInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        performSearch();
+      }
+    });
+  }
+  
+  // Close modal when clicking outside
+  if (studentModal) {
+    studentModal.addEventListener('click', function(e) {
+      if (e.target === studentModal) {
+        closeStudentModal();
+      }
+    });
   }
 });
 

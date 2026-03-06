@@ -78,6 +78,23 @@
         </div>
       </header>
 
+      <!-- Search Bar -->
+      <div class="card" style="padding: 1rem;">
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+          <div style="flex: 1; position: relative;">
+            <input 
+              type="text" 
+              id="teacherSearchInput" 
+              placeholder="Search Student Details" 
+              style="width: 100%; padding: 0.75rem 1rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
+            />
+          </div>
+          <button class="btn" data-search-btn style="padding: 0.75rem 1.5rem;">
+            Search
+          </button>
+        </div>
+      </div>
+
       <section class="layout-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))" data-summary>
         <div class="card" style="cursor: pointer" data-show-subject-sessions>
           <div class="stat">
@@ -685,6 +702,17 @@
             ">
           Month
         </button>
+        <button type="button" class="tab-btn" data-defaulter-tab="date" style="
+              padding: 0.75rem 1.25rem;
+              border: none;
+              background: none;
+              cursor: pointer;
+              border-bottom: 3px solid transparent;
+              font-weight: 500;
+              transition: all 0.2s;
+            ">
+          Date
+        </button>
         <button type="button" class="tab-btn" data-defaulter-tab="percentage" style="
               padding: 0.75rem 1.25rem;
               border: none;
@@ -756,6 +784,28 @@
               <option value="11">November</option>
               <option value="12">December</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Date Tab -->
+        <div class="tab-content" data-tab-content="date" style="display: none">
+          <div class="input-group">
+            <label for="defaulterStartDate">Start Date</label>
+            <select id="defaulterStartDate" name="start_date">
+              <option value="">Select start date...</option>
+            </select>
+            <p class="tagline" style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;">
+              Dates available based on selected month
+            </p>
+          </div>
+          <div class="input-group" style="margin-top: 1rem;">
+            <label for="defaulterEndDate">End Date</label>
+            <select id="defaulterEndDate" name="end_date">
+              <option value="">Select end date...</option>
+            </select>
+            <p class="tagline" style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;">
+              Leave empty to use all dates from start
+            </p>
           </div>
         </div>
 
@@ -1053,6 +1103,30 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Student Details Modal -->
+  <dialog data-student-details-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(600px, 90vw);
+        max-height: 85vh;
+        overflow-y: auto;
+      ">
+    <div class="layout-grid" style="gap: 1.5rem">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Student Details</h3>
+        <button type="button" class="btn ghost" data-close-student-details>
+          Close
+        </button>
+      </div>
+      <div data-student-details-content>
+        <div style="text-align: center; padding: 2rem; color: #666;">
+          Loading student details...
         </div>
       </div>
     </div>
