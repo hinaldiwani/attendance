@@ -38,7 +38,14 @@ export async function teacherDashboard(req, res, next) {
       `SELECT DISTINCT stream, year, semester, division, subject
        FROM teacher_details_db 
        WHERE teacher_id = ?
-       ORDER BY stream, year, semester`,
+       ORDER BY 
+         CASE 
+           WHEN stream = 'BSCIT' THEN 1
+           WHEN stream = 'BSCDS' THEN 2
+           ELSE 3
+         END, 
+         year, 
+         semester`,
       [teacherId],
     );
 
@@ -94,7 +101,12 @@ export async function getStreamsAndDivisions(req, res, next) {
     const [streamsList] = await pool.query(
       `SELECT DISTINCT stream FROM student_details_db 
        WHERE stream IS NOT NULL AND stream != ''
-       ORDER BY stream`,
+       ORDER BY 
+         CASE 
+           WHEN stream = 'BSCIT' THEN 1
+           WHEN stream = 'BSCDS' THEN 2
+           ELSE 3
+         END`,
     );
 
     // Get distinct divisions from student records
@@ -293,7 +305,14 @@ export async function endAttendance(req, res, next) {
     const studentIds = formatted.map((f) => f.studentId);
     const placeholders = studentIds.map(() => "?").join(",");
     const [students] = await pool.query(
-      `SELECT student_id, student_name, roll_no FROM student_details_db WHERE student_id IN (${placeholders}) ORDER BY student_id ASC`,
+      `SELECT student_id, student_name, roll_no FROM student_details_db WHERE student_id IN (${placeholders}) ORDER BY 
+        CASE 
+          WHEN stream = 'BSCIT' THEN 1
+          WHEN stream = 'BSCDS' THEN 2
+          ELSE 3
+        END,
+        student_id ASC, 
+        roll_no ASC`,
       studentIds,
     );
 
@@ -487,7 +506,14 @@ export async function getSubjectSessions(req, res, next) {
          AND s.stream IS NOT NULL
          AND s.division IS NOT NULL
        GROUP BY s.subject, s.year, s.semester, s.stream, s.division
-       ORDER BY s.year, s.semester, s.stream, s.division, s.subject`,
+       ORDER BY s.year, s.semester, 
+         CASE 
+           WHEN s.stream = 'BSCIT' THEN 1
+           WHEN s.stream = 'BSCDS' THEN 2
+           ELSE 3
+         END, 
+         s.division, 
+         s.subject`,
       [teacherId]
     );
 
@@ -1266,7 +1292,7 @@ export async function teacherGetAttendanceDates(req, res, next) {
   try {
     const teacherId = req.session.user.id;
     const { month, year } = req.query;
-    
+
     if (!month || month === "ALL") {
       return res.json({ dates: [] });
     }
@@ -1474,25 +1500,34 @@ export async function teacherSearchStudent(req, res, next) {
   try {
     const { studentId } = req.params;
     const teacherId = req.session.user.id;
-    
+
     if (!teacherId) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Unauthorized' 
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized'
       });
     }
-    
+
     if (!studentId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Student ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
       });
     }
-    
-    // Get student details with attendance summary
+
+    const searchTerm = `%${studentId}%`;
+    const trimmedInput = studentId.trim();
+    const isSingleLetter = trimmedInput.length === 1 && /^[a-zA-Z]$/.test(trimmedInput);
+    const isDigitsOnly = /^\d{1,3}$/.test(trimmedInput);
+
+    // Get student details with attendance summary - search across multiple fields
     // Check if student is assigned to this teacher
-    const [students] = await pool.query(
-      `SELECT 
+    // If single letter, search only division field
+    // If 1-3 digits, search only roll_no field
+    let query, params;
+    
+    if (isSingleLetter) {
+      query = `SELECT 
         s.student_id,
         s.student_name,
         s.year,
@@ -1505,21 +1540,76 @@ export async function teacherSearchStudent(req, res, next) {
       INNER JOIN teacher_student_map tsm ON s.student_id = tsm.student_id
       LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
       LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
-      WHERE s.student_id = ? AND tsm.teacher_id = ?
-      GROUP BY s.student_id`,
-      [studentId, teacherId]
-    );
-    
+      WHERE s.division = ?
+        AND tsm.teacher_id = ?
+      GROUP BY s.student_id
+      ORDER BY 
+        CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        s.student_id ASC`;
+      params = [trimmedInput.toUpperCase(), teacherId];
+    } else if (isDigitsOnly) {
+      query = `SELECT 
+        s.student_id,
+        s.student_name,
+        s.year,
+        s.stream,
+        s.division,
+        s.roll_no,
+        COALESCE(SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END), 0) as attendance_count,
+        COUNT(DISTINCT ases.session_id) as total_sessions
+      FROM student_details_db s
+      INNER JOIN teacher_student_map tsm ON s.student_id = tsm.student_id
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
+      LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
+      WHERE s.roll_no = ?
+        AND tsm.teacher_id = ?
+      GROUP BY s.student_id
+      ORDER BY 
+        CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        s.student_id ASC`;
+      params = [trimmedInput, teacherId];
+    } else {
+      query = `SELECT 
+        s.student_id,
+        s.student_name,
+        s.year,
+        s.stream,
+        s.division,
+        s.roll_no,
+        COALESCE(SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END), 0) as attendance_count,
+        COUNT(DISTINCT ases.session_id) as total_sessions
+      FROM student_details_db s
+      INNER JOIN teacher_student_map tsm ON s.student_id = tsm.student_id
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
+      LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
+      WHERE (s.student_id LIKE ? 
+        OR s.student_name LIKE ?
+        OR s.roll_no LIKE ?
+        OR s.year LIKE ?
+        OR s.stream LIKE ?
+        OR s.division LIKE ?)
+        AND tsm.teacher_id = ?
+      GROUP BY s.student_id
+      ORDER BY 
+        CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        s.student_id ASC`;
+      params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, teacherId];
+    }
+
+    const [students] = await pool.query(query, params);
+
     if (!students || students.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Student not found or not assigned to you' 
+      return res.status(404).json({
+        success: false,
+        message: 'No student found matching your search or not assigned to you'
       });
     }
-    
+
+    // If multiple results, return array; if single result, return single object
     return res.json({
       success: true,
-      data: students[0]
+      data: students.length === 1 ? students[0] : students,
+      count: students.length
     });
   } catch (error) {
     console.error('Teacher search student error:', error);
@@ -1532,30 +1622,30 @@ export async function getTeacherStudentSessionAttendance(req, res, next) {
   try {
     const { studentId } = req.params;
     const teacherId = req.session.user.id;
-    
+
     console.log(`[Teacher Sessions] Teacher ${teacherId} requesting sessions for student ${studentId}`);
-    
+
     if (!studentId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Student ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID is required'
       });
     }
-    
+
     // Verify student is assigned to this teacher
     const [mapping] = await pool.query(
       `SELECT * FROM teacher_student_map WHERE teacher_id = ? AND student_id = ?`,
       [teacherId, studentId]
     );
-    
+
     if (!mapping || mapping.length === 0) {
       console.log(`[Teacher Sessions] Access denied - student ${studentId} not assigned to teacher ${teacherId}`);
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Access denied. Student not assigned to you.' 
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Student not assigned to you.'
       });
     }
-    
+
     // Get all attendance sessions for the student
     const [sessions] = await pool.query(
       `SELECT 
@@ -1580,9 +1670,9 @@ export async function getTeacherStudentSessionAttendance(req, res, next) {
       ORDER BY ases.started_at DESC`,
       [studentId]
     );
-    
+
     console.log(`[Teacher Sessions] Found ${sessions.length} session records for student ${studentId}`);
-    
+
     return res.json({
       success: true,
       data: sessions

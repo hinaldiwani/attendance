@@ -591,11 +591,11 @@ function renderActiveSession() {
   updateSnapshot(currentSession);
   updateSessionBadges();
 
-  // Sort students by roll number in ascending order before rendering
+  // Sort students by student ID in ascending order before rendering
   const sortedStudents = [...currentSession.students].sort((a, b) => {
-    const rollA = parseInt(a.rollNo) || 0;
-    const rollB = parseInt(b.rollNo) || 0;
-    return rollA - rollB;
+    const idA = String(a.id || '').toLowerCase();
+    const idB = String(b.id || '').toLowerCase();
+    return idA.localeCompare(idB);
   });
 
   const rows = sortedStudents
@@ -698,10 +698,10 @@ async function handleStartSession(event) {
         division: student.division,
         status: "P",
       })).sort((a, b) => {
-        // Sort by roll number in ascending order
-        const rollA = parseInt(a.rollNo) || 0;
-        const rollB = parseInt(b.rollNo) || 0;
-        return rollA - rollB;
+        // Sort by student ID in ascending order
+        const idA = String(a.id || '').toLowerCase();
+        const idB = String(b.id || '').toLowerCase();
+        return idA.localeCompare(idB);
       })
       : [];
 
@@ -1618,7 +1618,7 @@ function initDefaulterButton() {
   const tabButtons = document.querySelectorAll("[data-defaulter-tab]");
   const tabContents = document.querySelectorAll("[data-tab-content]");
 
-  const tabs = ["year", "stream", "division", "month", "date", "percentage"];
+  const tabs = ["year", "stream", "division", "daterange", "percentage"];
   let currentTabIndex = 0;
 
   // Open modal
@@ -1707,99 +1707,7 @@ function initDefaulterButton() {
       defaulterViewButton.style.display = isLast ? "block" : "none";
     if (defaulterExportButton)
       defaulterExportButton.style.display = isLast ? "block" : "none";
-
-    // Auto-load dates when Date tab is shown (index 4)
-    if (index === 4) {
-      loadAvailableDates();
-    }
   }
-
-  // Fetch available dates based on selected month
-  async function loadAvailableDates() {
-    const monthSelect = document.getElementById("defaulterMonth");
-    const startDateSelect = document.getElementById("defaulterStartDate");
-    const endDateSelect = document.getElementById("defaulterEndDate");
-    const yearSelect = document.getElementById("defaulterYear");
-    
-    if (!startDateSelect || !endDateSelect) {
-      console.warn("Date selectors not found");
-      return;
-    }
-    
-    const yearValue = yearSelect?.value;
-    const month = monthSelect?.value;
-
-    if (!month || month === "ALL") {
-      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
-      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
-      return;
-    }
-
-    try {
-      // Generate dates for the selected month
-      // Extract year - handle both academic year formats (FY, SY, TY) and actual years
-      let year = new Date().getFullYear(); // Default to current year
-      
-      if (yearValue && yearValue !== "ALL") {
-        // Try to extract a 4-digit year from the value
-        const yearMatch = yearValue.match(/\d{4}/);
-        if (yearMatch) {
-          year = parseInt(yearMatch[0]);
-        }
-        // Otherwise use current year for academic year selections (FY, SY, TY)
-      }
-      
-      const monthNum = parseInt(month);
-      
-      // Get number of days in the month
-      const daysInMonth = new Date(year, monthNum, 0).getDate();
-      const dates = [];
-      
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, monthNum - 1, day);
-        const dateStr = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-        dates.push(dateStr);
-      }
-
-      // Populate start date
-      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
-      dates.forEach(date => {
-        const option = document.createElement("option");
-        option.value = date;
-        option.textContent = new Date(date).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
-        });
-        startDateSelect.appendChild(option);
-      });
-
-      // Populate end date
-      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
-      dates.forEach(date => {
-        const option = document.createElement("option");
-        option.value = date;
-        option.textContent = new Date(date).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
-        });
-        endDateSelect.appendChild(option);
-      });
-    } catch (error) {
-      console.error("Failed to generate dates:", error);
-      startDateSelect.innerHTML = '<option value="">Error generating dates</option>';
-      endDateSelect.innerHTML = '<option value="">Error generating dates</option>';
-    }
-  }
-
-  // Add month change listener  
-  const monthSelect = document.getElementById("defaulterMonth");
-  monthSelect?.addEventListener("change", loadAvailableDates);
-
-  // Add year change listener
-  const yearSelect = document.getElementById("defaulterYear");
-  yearSelect?.addEventListener("change", loadAvailableDates);
 
   // Tab button clicks
   tabButtons.forEach((btn, index) => {
@@ -1844,19 +1752,17 @@ function initDefaulterButton() {
     const year = formData.get("year");
     const stream = formData.get("stream");
     const division = formData.get("division");
-    const month = formData.get("month");
     const startDate = formData.get("start_date");
     const endDate = formData.get("end_date");
     const threshold = formData.get("threshold");
 
     const params = new URLSearchParams({ threshold: parseFloat(threshold) });
-    if (month && month !== "ALL") params.append("month", month);
     if (year && year !== "ALL") params.append("year", year);
     if (stream && stream !== "ALL") params.append("stream", stream);
     if (division && division !== "ALL") params.append("division", division);
     if (startDate) params.append("start_date", startDate);
     if (endDate) params.append("end_date", endDate);
-    return { params, year, stream, division, month, startDate, endDate, threshold };
+    return { params, year, stream, division, startDate, endDate, threshold };
   }
 
   // ── VIEW button: fetch JSON and show results modal ──────────────────────
@@ -1887,9 +1793,9 @@ function initDefaulterButton() {
   let lastDefaulterParams = null;
 
   defaulterViewButton?.addEventListener("click", async () => {
-    const { params, year, stream, division, month, threshold } =
+    const { params, year, stream, division, startDate, endDate, threshold } =
       buildDefaulterParams();
-    lastDefaulterParams = { params, year, stream, division, month, threshold };
+    lastDefaulterParams = { params, year, stream, division, startDate, endDate, threshold };
 
     defaulterModal?.close();
     defaulterResultsBody.innerHTML = '<tr><td colspan="8">Loading...</td></tr>';
@@ -1956,7 +1862,7 @@ function initDefaulterButton() {
   });
 
   // ── EXPORT button (in wizard) ──────────────────────────────────────────
-  async function downloadDefaulterExcel({ params, year, month, threshold }) {
+  async function downloadDefaulterExcel({ params, year, startDate, endDate, threshold }) {
     const response = await fetch(
       `/api/teacher/defaulters/download?${params.toString()}`,
       { method: "GET", credentials: "include" },
@@ -1973,9 +1879,11 @@ function initDefaulterButton() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const monthName = month === "ALL" ? "All" : month || "All";
     const yearName = year === "ALL" ? "All" : year || "All";
-    a.download = `Defaulter_List_${threshold}%_${monthName}_${yearName}.xlsx`;
+    const dateRange = startDate
+      ? (endDate ? `${startDate}_to_${endDate}` : `from_${startDate}`)
+      : "All_Dates";
+    a.download = `Defaulter_List_${threshold}%_${yearName}_${dateRange}.xlsx`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -2129,16 +2037,16 @@ document.addEventListener("visibilitychange", () => {
 function performSearch() {
   const searchInput = document.getElementById('teacherSearchInput');
   const searchValue = searchInput.value.trim();
-  
+
   if (!searchValue) {
     showToast({
       title: 'Search Required',
-      message: 'Please enter a Student ID',
+      message: 'Please enter search term (ID, Name, Roll No, etc.)',
       type: 'error'
     });
     return;
   }
-  
+
   // Search for student only (teachers cannot search other teachers)
   searchStudent(searchValue);
 }
@@ -2146,13 +2054,20 @@ function performSearch() {
 async function searchStudent(studentId) {
   try {
     const response = await apiFetch(`/api/teacher/search/student/${encodeURIComponent(studentId)}`);
-    
+
     if (response.success && response.data) {
-      displayStudentDetails(response.data);
+      // Check if multiple results
+      if (Array.isArray(response.data) && response.data.length > 1) {
+        displaySearchResults(response.data, 'student');
+      } else {
+        // Single result - show details directly
+        const student = Array.isArray(response.data) ? response.data[0] : response.data;
+        displayStudentDetails(student);
+      }
     } else {
       showToast({
         title: 'Not Found',
-        message: response.message || 'Student not found or not assigned to you',
+        message: response.message || 'No student found matching your search',
         type: 'error'
       });
     }
@@ -2166,23 +2081,96 @@ async function searchStudent(studentId) {
   }
 }
 
+function displaySearchResults(results, type) {
+  const searchResultsModal = document.querySelector('[data-search-results-modal]');
+  const searchResultsContent = document.querySelector('[data-search-results-content]');
+
+  if (!searchResultsModal || !searchResultsContent) {
+    console.error('Search results modal elements not found');
+    return;
+  }
+
+  const resultsHtml = results.map((item, index) => {
+    if (type === 'student') {
+      return `
+        <div class="card" style="padding: 1rem; cursor: pointer; transition: all 0.2s;" 
+             onmouseover="this.style.background='#f0f0f0'" 
+             onmouseout="this.style.background='white'"
+             onclick="selectSearchResult(${index}, 'student')">
+          <div style="display: grid; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div>
+                <strong style="font-size: 1.1rem; color: #2c3e50;">${escapeHtml(item.student_name)}</strong>
+                <div style="color: #7f8c8d; font-size: 0.9rem; margin-top: 0.25rem;">
+                  ID: ${escapeHtml(item.student_id)} | Roll No: ${escapeHtml(item.roll_no || 'N/A')}
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #555;">
+              <span><strong>Year:</strong> ${escapeHtml(item.year)}</span>
+              <span><strong>Stream:</strong> ${escapeHtml(item.stream)}</span>
+              <span><strong>Division:</strong> ${escapeHtml(item.division)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    return '';
+  }).join('');
+
+  searchResultsContent.innerHTML = `
+    <div style="margin-bottom: 1rem; padding: 0.75rem; background: #e8f4f8; border-radius: 8px; color: #2c3e50;">
+      Found ${results.length} matching student${results.length > 1 ? 's' : ''}. Click to view details.
+    </div>
+    <div style="display: grid; gap: 0.75rem;">
+      ${resultsHtml}
+    </div>
+  `;
+
+  // Store results for selection
+  window.searchResultsData = results;
+  window.searchResultsType = type;
+
+  searchResultsModal.showModal();
+}
+
+function selectSearchResult(index, type) {
+  const results = window.searchResultsData;
+  const searchResultsModal = document.querySelector('[data-search-results-modal]');
+
+  if (!results || !results[index]) return;
+
+  // Close search results modal
+  if (searchResultsModal) {
+    searchResultsModal.close();
+  }
+
+  // Display the selected item details
+  if (type === 'student') {
+    displayStudentDetails(results[index]);
+  }
+}
+
+// Make selectSearchResult available globally
+window.selectSearchResult = selectSearchResult;
+
 function displayStudentDetails(student) {
   const studentDetailsModal = document.querySelector('[data-student-details-modal]');
   const studentDetailsContent = document.querySelector('[data-student-details-content]');
-  
+
   if (!studentDetailsModal || !studentDetailsContent) {
     console.error('Student details modal elements not found');
     return;
   }
-  
+
   // Calculate attendance percentage
-  const attendancePercentage = student.total_sessions > 0 
+  const attendancePercentage = student.total_sessions > 0
     ? ((student.attendance_count / student.total_sessions) * 100).toFixed(2)
     : '0.00';
-  
+
   // Determine attendance status
   const attendanceColor = parseFloat(attendancePercentage) >= 75 ? '#27ae60' : '#e74c3c';
-  
+
   studentDetailsContent.innerHTML = `
     <div class="card" style="background: #f8f9fa; padding: 1.5rem;">
       <div style="display: grid; gap: 1rem;">
@@ -2230,7 +2218,7 @@ function displayStudentDetails(student) {
       </div>
     </div>
   `;
-  
+
   // Attach click event to attendance section
   const attendanceSection = studentDetailsContent.querySelector('[data-attendance-clickable]');
   if (attendanceSection) {
@@ -2239,7 +2227,7 @@ function displayStudentDetails(student) {
       showSessionAttendance(studentId);
     });
   }
-  
+
   studentDetailsModal?.showModal();
 }
 
@@ -2261,25 +2249,25 @@ let allSessionData = []; // Store all session data for filtering
 async function showSessionAttendance(studentId) {
   const sessionAttendanceModal = document.querySelector('[data-session-attendance-modal]');
   const sessionAttendanceContent = document.querySelector('[data-session-attendance-content]');
-  
+
   if (!sessionAttendanceModal || !sessionAttendanceContent) {
     console.error('Session attendance modal elements not found');
     return;
   }
-  
+
   try {
     sessionAttendanceContent.innerHTML = `
       <div style="text-align: center; padding: 2rem; color: #666;">
         <p style="margin-top: 1rem;">Loading session attendance data...</p>
       </div>
     `;
-    
+
     sessionAttendanceModal?.showModal();
-    
+
     console.log(`Fetching sessions for student: ${studentId}`);
     const response = await apiFetch(`/api/teacher/student/${encodeURIComponent(studentId)}/sessions`);
     console.log('Session response:', response);
-    
+
     if (response.success && response.data) {
       allSessionData = response.data;
       if (allSessionData.length === 0) {
@@ -2312,9 +2300,9 @@ async function showSessionAttendance(studentId) {
 
 function renderSessionAttendanceTable(sessions, highlightQuery = '') {
   const sessionAttendanceContent = document.querySelector('[data-session-attendance-content]');
-  
+
   if (!sessionAttendanceContent) return;
-  
+
   if (!sessions || sessions.length === 0) {
     sessionAttendanceContent.innerHTML = `
       <div style="text-align: center; padding: 2rem; color: #666;">
@@ -2341,22 +2329,22 @@ function renderSessionAttendanceTable(sessions, highlightQuery = '') {
       </thead>
       <tbody>
         ${sessions.map((session, index) => {
-          const isHighlighted = highlightQuery && shouldHighlightRow(session, highlightQuery);
-          const rowStyle = `
+    const isHighlighted = highlightQuery && shouldHighlightRow(session, highlightQuery);
+    const rowStyle = `
             background: ${isHighlighted ? '#fff3cd' : index % 2 === 0 ? '#f8f9fa' : 'white'};
             border-bottom: 1px solid #dee2e6;
             ${isHighlighted ? 'box-shadow: inset 0 0 0 2px #ffc107;' : ''}
           `;
-          const isPresent = session.status?.toUpperCase() === 'P';
-          const statusColor = isPresent ? '#27ae60' : '#e74c3c';
-          const statusText = isPresent ? 'Present' : 'Absent';
-          const formattedDate = session.date ? new Date(session.date).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          }) : 'N/A';
-          
-          return `
+    const isPresent = session.status?.toUpperCase() === 'P';
+    const statusColor = isPresent ? '#27ae60' : '#e74c3c';
+    const statusText = isPresent ? 'Present' : 'Absent';
+    const formattedDate = session.date ? new Date(session.date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }) : 'N/A';
+
+    return `
             <tr style="${rowStyle}">
               <td style="padding: 0.75rem;">${escapeHtml(session.student_id || 'N/A')}</td>
               <td style="padding: 0.75rem;">${escapeHtml(session.student_name || 'N/A')}</td>
@@ -2379,7 +2367,7 @@ function renderSessionAttendanceTable(sessions, highlightQuery = '') {
               <td style="padding: 0.75rem;">${escapeHtml(session.teacher || 'N/A')}</td>
             </tr>
           `;
-        }).join('')}
+  }).join('')}
       </tbody>
     </table>
   `;
@@ -2408,13 +2396,13 @@ function shouldHighlightRow(session, query) {
 function filterSessionAttendance() {
   const sessionSearchInput = document.querySelector('[data-session-search-input]');
   const query = sessionSearchInput?.value?.trim() || '';
-  
+
   if (!query) {
     renderSessionAttendanceTable(allSessionData);
     return;
   }
 
-  const filteredSessions = allSessionData.filter(session => 
+  const filteredSessions = allSessionData.filter(session =>
     shouldHighlightRow(session, query)
   );
 
@@ -2422,59 +2410,68 @@ function filterSessionAttendance() {
 }
 
 // Event listeners for search functionality
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   const searchButton = document.getElementById('teacherSearchButton');
   const searchInput = document.getElementById('teacherSearchInput');
+  const searchResultsModal = document.querySelector('[data-search-results-modal]');
   const studentModal = document.querySelector('[data-student-details-modal]');
   const sessionAttendanceModal = document.querySelector('[data-session-attendance-modal]');
+  const closeSearchResultsBtn = document.querySelector('[data-close-search-results]');
   const closeStudentDetailsBtn = document.querySelector('[data-close-student-details]');
   const closeSessionAttendanceBtn = document.querySelector('[data-close-session-attendance]');
   const sessionSearchInput = document.querySelector('[data-session-search-input]');
-  
+
   // Search button click
   if (searchButton) {
     searchButton.addEventListener('click', performSearch);
   }
-  
+
   // Enter key in search input
   if (searchInput) {
-    searchInput.addEventListener('keypress', function(e) {
+    searchInput.addEventListener('keypress', function (e) {
       if (e.key === 'Enter') {
         performSearch();
       }
     });
   }
-  
+
+  // Close search results modal
+  if (closeSearchResultsBtn) {
+    closeSearchResultsBtn.addEventListener('click', () => {
+      searchResultsModal?.close();
+    });
+  }
+
   // Close student details modal
   if (closeStudentDetailsBtn) {
     closeStudentDetailsBtn.addEventListener('click', () => {
       studentModal?.close();
     });
   }
-  
+
   // Close session attendance modal
   if (closeSessionAttendanceBtn) {
     closeSessionAttendanceBtn.addEventListener('click', () => {
       sessionAttendanceModal?.close();
     });
   }
-  
+
   // Session search input
   if (sessionSearchInput) {
     sessionSearchInput.addEventListener('input', filterSessionAttendance);
   }
-  
+
   // Close modals when clicking outside
   if (studentModal) {
-    studentModal.addEventListener('click', function(e) {
+    studentModal.addEventListener('click', function (e) {
       if (e.target === studentModal) {
         studentModal.close();
       }
     });
   }
-  
+
   if (sessionAttendanceModal) {
-    sessionAttendanceModal.addEventListener('click', function(e) {
+    sessionAttendanceModal.addEventListener('click', function (e) {
       if (e.target === sessionAttendanceModal) {
         sessionAttendanceModal.close();
       }

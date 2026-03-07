@@ -214,7 +214,12 @@ export async function fetchDashboardStats(req, res, next) {
     const [streamsList] = await pool.query(
       `SELECT DISTINCT stream FROM student_details_db 
        WHERE stream IS NOT NULL AND stream != ''
-       ORDER BY stream`,
+       ORDER BY 
+         CASE 
+           WHEN stream = 'BSCIT' THEN 1
+           WHEN stream = 'BSCDS' THEN 2
+           ELSE 3
+         END`,
     );
 
     // Get distinct divisions from student records
@@ -247,7 +252,13 @@ export async function fetchDashboardStats(req, res, next) {
        FROM student_details_db
        WHERE stream IS NOT NULL AND division IS NOT NULL
        GROUP BY stream, division
-       ORDER BY stream, division`,
+       ORDER BY 
+         CASE 
+           WHEN stream = 'BSCIT' THEN 1
+           WHEN stream = 'BSCDS' THEN 2
+           ELSE 3
+         END, 
+         division`,
     );
 
     const response = {
@@ -317,7 +328,15 @@ export async function downloadTemplate(req, res) {
         params.push(year);
       }
 
-      query += ` ORDER BY year, stream, division, student_id`;
+      query += ` ORDER BY year, 
+        CASE 
+          WHEN stream = 'BSCIT' THEN 1
+          WHEN stream = 'BSCDS' THEN 2
+          ELSE 3
+        END, 
+        division, 
+        student_id, 
+        roll_no`;
 
       // Fetch student data from database
       const [students] = await pool.query(query, params);
@@ -350,7 +369,13 @@ export async function downloadTemplate(req, res) {
       const [teachers] = await pool.query(
         `SELECT teacher_id, name, subject, year, stream
          FROM teacher_details_db
-         ORDER BY year, stream, name`,
+         ORDER BY year, 
+           CASE 
+             WHEN stream = 'BSCIT' THEN 1
+             WHEN stream = 'BSCDS' THEN 2
+             ELSE 3
+           END, 
+           name`,
       );
 
       // Add rows
@@ -905,7 +930,7 @@ export async function updateMonthlyAttendance(req, res, next) {
 export async function getAttendanceDates(req, res, next) {
   try {
     const { month, year } = req.query;
-    
+
     if (!month || month === "ALL") {
       return res.json({ dates: [] });
     }
@@ -943,25 +968,28 @@ export async function getAttendanceDates(req, res, next) {
 export async function getTeachersInfo(req, res, next) {
   try {
     const query = `
-      SELECT DISTINCT
+      SELECT 
         t.teacher_id,
-        t.name as teacher_name,
-        t.subject,
-        t.year,
-        t.stream,
-        t.semester,
-        t.division,
+        MAX(t.name) as teacher_name,
+        GROUP_CONCAT(DISTINCT t.subject ORDER BY t.subject SEPARATOR ', ') as subject,
+        GROUP_CONCAT(DISTINCT t.year ORDER BY t.year SEPARATOR ', ') as year,
+        GROUP_CONCAT(DISTINCT t.stream ORDER BY t.stream SEPARATOR ', ') as stream,
+        GROUP_CONCAT(DISTINCT t.semester ORDER BY t.semester SEPARATOR ', ') as semester,
+        GROUP_CONCAT(DISTINCT t.division ORDER BY t.division SEPARATOR ', ') as division,
         (
           SELECT COUNT(DISTINCT tsm.student_id)
           FROM teacher_student_map tsm
           WHERE tsm.teacher_id = t.teacher_id
-            AND tsm.subject = t.subject
-            AND tsm.year = t.year
-            AND tsm.stream = t.stream
-            AND tsm.semester = t.semester
         ) as student_count
       FROM teacher_details_db t
-      ORDER BY t.name, t.year, t.stream, t.semester, t.subject
+      GROUP BY t.teacher_id
+      ORDER BY 
+        CASE 
+          WHEN MAX(t.stream) = 'BSCIT' THEN 1
+          WHEN MAX(t.stream) = 'BSCDS' THEN 2
+          ELSE 3
+        END,
+        t.teacher_id ASC
     `;
 
     const [teachers] = await pool.query(query);
@@ -1017,7 +1045,14 @@ export async function getStudentsInfo(req, res, next) {
         division
       FROM student_details_db
       ${studentsWhere}
-      ORDER BY roll_no
+      ORDER BY 
+        CASE 
+          WHEN stream = 'BSCIT' THEN 1
+          WHEN stream = 'BSCDS' THEN 2
+          ELSE 3
+        END,
+        student_id ASC, 
+        roll_no ASC
     `;
 
     console.log("📝 Students Query:", studentsQuery);
@@ -1349,7 +1384,15 @@ export async function getAllStudents(req, res, next) {
     const [students] = await pool.query(
       `SELECT student_id, student_name, year, stream, division
        FROM student_details_db
-       ORDER BY year, stream, division, student_name`,
+       ORDER BY year, 
+         CASE 
+           WHEN stream = 'BSCIT' THEN 1
+           WHEN stream = 'BSCDS' THEN 2
+           ELSE 3
+         END, 
+         division, 
+         student_id, 
+         student_name`,
     );
 
     return res.json({
@@ -1365,18 +1408,24 @@ export async function getAllStudents(req, res, next) {
 // Get all teachers for clickable Total Teachers card
 export async function getAllTeachers(req, res, next) {
   try {
-    // Return every individual assignment row so the modal shows all 10 rows
+    // Group by teacher_id and merge all assignments into comma-separated lists
     const query = `
       SELECT 
         teacher_id,
-        name AS teacher_name,
-        subject,
-        year,
-        stream,
-        semester,
-        division
+        MAX(name) AS teacher_name,
+        GROUP_CONCAT(DISTINCT subject ORDER BY subject SEPARATOR ', ') as subject,
+        GROUP_CONCAT(DISTINCT year ORDER BY year SEPARATOR ', ') as year,
+        GROUP_CONCAT(DISTINCT stream ORDER BY 
+          CASE 
+            WHEN stream = 'BSCIT' THEN 1
+            WHEN stream = 'BSCDS' THEN 2
+            ELSE 3
+          END SEPARATOR ', ') as stream,
+        GROUP_CONCAT(DISTINCT semester ORDER BY semester SEPARATOR ', ') as semester,
+        GROUP_CONCAT(DISTINCT division ORDER BY division SEPARATOR ', ') as division
       FROM teacher_details_db
-      ORDER BY name, year, stream, semester, subject
+      GROUP BY teacher_id
+      ORDER BY teacher_id ASC
     `;
 
     const [teachers] = await pool.query(query);
@@ -1402,7 +1451,13 @@ export async function getAllSubjects(req, res, next) {
         division,
         name as teacher_name
       FROM teacher_details_db
-      ORDER BY subject, year, stream, division
+      ORDER BY subject, year, 
+        CASE 
+          WHEN stream = 'BSCIT' THEN 1
+          WHEN stream = 'BSCDS' THEN 2
+          ELSE 3
+        END, 
+        division
     `;
 
     const [subjects] = await pool.query(query);
@@ -1496,7 +1551,15 @@ export async function getStudentsByFilters(req, res, next) {
       params.push(year);
     }
 
-    query += ` ORDER BY year, stream, division, roll_no`;
+    query += ` ORDER BY year, 
+      CASE 
+        WHEN stream = 'BSCIT' THEN 1
+        WHEN stream = 'BSCDS' THEN 2
+        ELSE 3
+      END, 
+      division, 
+      student_id, 
+      roll_no`;
 
     const [students] = await pool.query(query, params);
 
@@ -1619,17 +1682,26 @@ export async function downloadAdminDefaulterHistoryEntry(req, res, next) {
 export async function searchStudent(req, res, next) {
   try {
     const { studentId } = req.params;
-    
+
     if (!studentId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Student ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
       });
     }
+
+    const searchTerm = `%${studentId}%`;
+    const trimmedInput = studentId.trim();
+    const isSingleLetter = trimmedInput.length === 1 && /^[a-zA-Z]$/.test(trimmedInput);
+    const isDigitsOnly = /^\d{1,3}$/.test(trimmedInput);
+
+    // Get student details with attendance summary - search across multiple fields
+    // If single letter, search only division field
+    // If 1-3 digits, search only roll_no field
+    let query, params;
     
-    // Get student details with attendance summary
-    const [students] = await pool.query(
-      `SELECT 
+    if (isSingleLetter) {
+      query = `SELECT 
         s.student_id,
         s.student_name,
         s.year,
@@ -1641,21 +1713,71 @@ export async function searchStudent(req, res, next) {
       FROM student_details_db s
       LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
       LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
-      WHERE s.student_id = ?
-      GROUP BY s.student_id`,
-      [studentId]
-    );
-    
+      WHERE s.division = ?
+      GROUP BY s.student_id
+      ORDER BY 
+        CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        s.student_id ASC`;
+      params = [trimmedInput.toUpperCase()];
+    } else if (isDigitsOnly) {
+      query = `SELECT 
+        s.student_id,
+        s.student_name,
+        s.year,
+        s.stream,
+        s.division,
+        s.roll_no,
+        COALESCE(SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END), 0) as attendance_count,
+        COUNT(DISTINCT ases.session_id) as total_sessions
+      FROM student_details_db s
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
+      LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
+      WHERE s.roll_no = ?
+      GROUP BY s.student_id
+      ORDER BY 
+        CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        s.student_id ASC`;
+      params = [trimmedInput];
+    } else {
+      query = `SELECT 
+        s.student_id,
+        s.student_name,
+        s.year,
+        s.stream,
+        s.division,
+        s.roll_no,
+        COALESCE(SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END), 0) as attendance_count,
+        COUNT(DISTINCT ases.session_id) as total_sessions
+      FROM student_details_db s
+      LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
+      LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
+      WHERE s.student_id LIKE ? 
+        OR s.student_name LIKE ?
+        OR s.roll_no LIKE ?
+        OR s.year LIKE ?
+        OR s.stream LIKE ?
+        OR s.division LIKE ?
+      GROUP BY s.student_id
+      ORDER BY 
+        CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        s.student_id ASC`;
+      params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm];
+    }
+
+    const [students] = await pool.query(query, params);
+
     if (!students || students.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Student not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'No student found matching your search'
       });
     }
-    
+
+    // If multiple results, return array; if single result, return single object
     return res.json({
       success: true,
-      data: students[0]
+      data: students.length === 1 ? students[0] : students,
+      count: students.length
     });
   } catch (error) {
     console.error('Search student error:', error);
@@ -1663,22 +1785,29 @@ export async function searchStudent(req, res, next) {
   }
 }
 
-// Search for teacher by ID
+// Search for teacher by ID or name
 export async function searchTeacher(req, res, next) {
   try {
     const { teacherId } = req.params;
-    
+
     if (!teacherId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Teacher ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
       });
     }
-    
-    // Get teacher details with assigned students count
+
+    const searchTerm = `%${teacherId}%`;
+    const trimmedInput = teacherId.trim();
+    const isSingleLetter = trimmedInput.length === 1 && /^[a-zA-Z]$/.test(trimmedInput);
+
+    // Get teacher details with assigned students count - search across multiple fields
     // Use DISTINCT to get unique teacher and subquery for student count
-    const [teachers] = await pool.query(
-      `SELECT 
+    // If single letter, search only division field
+    let query, params;
+    
+    if (isSingleLetter) {
+      query = `SELECT 
         t.teacher_id,
         t.name,
         GROUP_CONCAT(DISTINCT t.subject ORDER BY t.subject SEPARATOR ', ') as subject,
@@ -1686,24 +1815,49 @@ export async function searchTeacher(req, res, next) {
         GROUP_CONCAT(DISTINCT t.stream ORDER BY t.stream SEPARATOR ', ') as stream,
         GROUP_CONCAT(DISTINCT t.division ORDER BY t.division SEPARATOR ', ') as division,
         GROUP_CONCAT(DISTINCT t.semester ORDER BY t.semester SEPARATOR ', ') as semester,
-        (SELECT COUNT(DISTINCT student_id) FROM teacher_student_map WHERE teacher_id = ?) as assigned_students,
-        (SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = ?) as sessions_taken
+        (SELECT COUNT(DISTINCT student_id) FROM teacher_student_map WHERE teacher_id = t.teacher_id) as assigned_students,
+        (SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = t.teacher_id) as sessions_taken
       FROM teacher_details_db t
-      WHERE t.teacher_id = ?
-      GROUP BY t.teacher_id, t.name`,
-      [teacherId, teacherId, teacherId]
-    );
-    
+      WHERE t.division = ?
+      GROUP BY t.teacher_id, t.name
+      ORDER BY t.teacher_id ASC`;
+      params = [trimmedInput.toUpperCase()];
+    } else {
+      query = `SELECT 
+        t.teacher_id,
+        t.name,
+        GROUP_CONCAT(DISTINCT t.subject ORDER BY t.subject SEPARATOR ', ') as subject,
+        GROUP_CONCAT(DISTINCT t.year ORDER BY t.year SEPARATOR ', ') as year,
+        GROUP_CONCAT(DISTINCT t.stream ORDER BY t.stream SEPARATOR ', ') as stream,
+        GROUP_CONCAT(DISTINCT t.division ORDER BY t.division SEPARATOR ', ') as division,
+        GROUP_CONCAT(DISTINCT t.semester ORDER BY t.semester SEPARATOR ', ') as semester,
+        (SELECT COUNT(DISTINCT student_id) FROM teacher_student_map WHERE teacher_id = t.teacher_id) as assigned_students,
+        (SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = t.teacher_id) as sessions_taken
+      FROM teacher_details_db t
+      WHERE t.teacher_id LIKE ?
+        OR t.name LIKE ?
+        OR t.subject LIKE ?
+        OR t.year LIKE ?
+        OR t.stream LIKE ?
+        OR t.division LIKE ?
+      GROUP BY t.teacher_id, t.name
+      ORDER BY t.teacher_id ASC`;
+      params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm];
+    }
+
+    const [teachers] = await pool.query(query, params);
+
     if (!teachers || teachers.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Teacher not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'No teacher found matching your search'
       });
     }
-    
+
+    // If multiple results, return array; if single result, return single object
     return res.json({
       success: true,
-      data: teachers[0]
+      data: teachers.length === 1 ? teachers[0] : teachers
     });
   } catch (error) {
     console.error('Search teacher error:', error);
@@ -1715,16 +1869,16 @@ export async function searchTeacher(req, res, next) {
 export async function getStudentSessionAttendance(req, res, next) {
   try {
     const { studentId } = req.params;
-    
+
     console.log(`[Admin Sessions] Requesting sessions for student ${studentId}`);
-    
+
     if (!studentId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Student ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID is required'
       });
     }
-    
+
     // Get all attendance sessions for the student
     const [sessions] = await pool.query(
       `SELECT 
@@ -1749,9 +1903,9 @@ export async function getStudentSessionAttendance(req, res, next) {
       ORDER BY ases.started_at DESC`,
       [studentId]
     );
-    
+
     console.log(`[Admin Sessions] Found ${sessions.length} session records for student ${studentId}`);
-    
+
     return res.json({
       success: true,
       data: sessions
@@ -1763,5 +1917,92 @@ export async function getStudentSessionAttendance(req, res, next) {
       message: 'Error fetching session attendance data',
       error: error.message
     });
+  }
+}
+
+// Change admin password
+export async function changeAdminPassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required'
+      });
+    }
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long'
+      });
+    }
+
+    // Get stored password from database or environment
+    const ADMIN_USER = process.env.ADMIN_USER || "admin@markin";
+    const ADMIN_PASS = process.env.ADMIN_PASSWORD || "admin123";
+
+    // Check if there's a stored password in database
+    const [storedPassword] = await pool.query(
+      `SELECT password FROM admin_credentials WHERE username = ? LIMIT 1`,
+      [ADMIN_USER]
+    );
+
+    const actualPassword = storedPassword.length > 0 ? storedPassword[0].password : ADMIN_PASS;
+
+    // Verify current password
+    if (currentPassword !== actualPassword) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Update password in database
+    if (storedPassword.length > 0) {
+      // Update existing record
+      await pool.query(
+        `UPDATE admin_credentials SET password = ?, updated_at = NOW() WHERE username = ?`,
+        [newPassword, ADMIN_USER]
+      );
+    } else {
+      // Insert new record
+      await pool.query(
+        `INSERT INTO admin_credentials (username, password, created_at, updated_at) VALUES (?, ?, NOW(), NOW())`,
+        [ADMIN_USER, newPassword]
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change admin password error:', error);
+    
+    // If table doesn't exist, create it
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS admin_credentials (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Retry the password change
+        return changeAdminPassword(req, res, next);
+      } catch (createError) {
+        console.error('Error creating admin_credentials table:', createError);
+        return next(createError);
+      }
+    }
+    
+    return next(error);
   }
 }

@@ -5,6 +5,7 @@ const profileName = document.querySelector("[data-profile-name]");
 const profileRoll = document.querySelector("[data-profile-roll]");
 const profileStream = document.querySelector("[data-profile-stream]");
 const profileDivision = document.querySelector("[data-profile-division]");
+const profileYear = document.querySelector("[data-profile-year]");
 const studentHeader = document.querySelector("[data-student-header]");
 
 const summarySessionsEl = document.querySelector("[data-summary-sessions]");
@@ -114,6 +115,7 @@ async function loadDashboard() {
     profileRoll.textContent = studentData.rollNo || "–";
     profileStream.textContent = studentData.stream || "–";
     profileDivision.textContent = studentData.division || "–";
+    profileYear.textContent = studentData.year || "–";
 
     // Update header with greeting and student name
     if (studentHeader && studentData.name) {

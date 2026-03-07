@@ -31,7 +31,14 @@ export async function getMappedStudents(teacherId, filters = {}) {
   }
 
   query += ` WHERE ` + conditions.join(" AND ");
-  query += ` ORDER BY s.roll_no ASC, s.student_id ASC`;
+  query += ` ORDER BY 
+    CASE 
+      WHEN s.stream = 'BSCIT' THEN 1
+      WHEN s.stream = 'BSCDS' THEN 2
+      ELSE 3
+    END,
+    s.student_id ASC, 
+    s.roll_no ASC`;
 
   const [rows] = await pool.query(query, params);
   return rows;

@@ -1,9 +1,6 @@
 import pool from "../../config/db.js";
 import notificationService from "../services/notificationService.js";
 
-const ADMIN_USER = process.env.ADMIN_USER || "admin@markin";
-const ADMIN_PASS = process.env.ADMIN_PASSWORD || "admin123";
-
 export async function login(req, res, next) {
   try {
     const { role, identifier, password } = req.body;
@@ -15,8 +12,35 @@ export async function login(req, res, next) {
     }
 
     if (role === "admin") {
-      if (identifier !== ADMIN_USER || password !== ADMIN_PASS) {
+      const ADMIN_USER = process.env.ADMIN_USER || "admin@markin";
+      const ADMIN_PASS = process.env.ADMIN_PASSWORD || "admin123";
+
+      // Check if username matches
+      if (identifier !== ADMIN_USER) {
         return res.status(401).json({ message: "Invalid admin credentials" });
+      }
+
+      // Check for stored password in database first
+      try {
+        const [storedPassword] = await pool.query(
+          `SELECT password FROM admin_credentials WHERE username = ? LIMIT 1`,
+          [ADMIN_USER]
+        );
+
+        const actualPassword = storedPassword.length > 0 ? storedPassword[0].password : ADMIN_PASS;
+
+        if (password !== actualPassword) {
+          return res.status(401).json({ message: "Invalid admin credentials" });
+        }
+      } catch (dbError) {
+        // If table doesn't exist, fall back to environment variable
+        if (dbError.code === 'ER_NO_SUCH_TABLE') {
+          if (password !== ADMIN_PASS) {
+            return res.status(401).json({ message: "Invalid admin credentials" });
+          }
+        } else {
+          throw dbError;
+        }
       }
 
       req.session.user = { role: "admin", id: identifier };

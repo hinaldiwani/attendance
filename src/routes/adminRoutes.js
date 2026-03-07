@@ -41,6 +41,7 @@ import {
   searchStudent,
   searchTeacher,
   getStudentSessionAttendance,
+  changeAdminPassword,
 } from "../controllers/adminController.js";
 import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 import notificationService from "../services/notificationService.js";
@@ -118,5 +119,8 @@ router.post("/attendance/update-monthly", updateMonthlyAttendance);
 router.get("/search/student/:studentId", searchStudent);
 router.get("/search/teacher/:teacherId", searchTeacher);
 router.get("/student/:studentId/sessions", getStudentSessionAttendance);
+
+// Password change route
+router.post("/change-password", changeAdminPassword);
 
 export default router;

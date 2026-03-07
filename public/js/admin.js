@@ -763,6 +763,91 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Change Password Modal
+  const changePasswordButton = document.querySelector("[data-change-password]");
+  const changePasswordModal = document.querySelector("[data-change-password-modal]");
+  const changePasswordForm = document.querySelector("[data-change-password-form]");
+  const closeChangePasswordButton = document.querySelector("[data-close-change-password]");
+  const cancelChangePasswordButton = document.querySelector("[data-cancel-change-password]");
+
+  // Open change password modal
+  changePasswordButton?.addEventListener("click", () => {
+    changePasswordForm?.reset();
+    changePasswordModal?.showModal();
+  });
+
+  // Close change password modal
+  closeChangePasswordButton?.addEventListener("click", () => {
+    changePasswordModal?.close();
+  });
+
+  cancelChangePasswordButton?.addEventListener("click", () => {
+    changePasswordModal?.close();
+  });
+
+  // Handle password change form submission
+  changePasswordForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(changePasswordForm);
+    const currentPassword = formData.get("currentPassword");
+    const newPassword = formData.get("newPassword");
+    const confirmPassword = formData.get("confirmPassword");
+
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+      showToast({
+        title: "Password Mismatch",
+        message: "New password and confirm password do not match",
+        type: "error"
+      });
+      return;
+    }
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      showToast({
+        title: "Password Too Short",
+        message: "Password must be at least 6 characters long",
+        type: "error"
+      });
+      return;
+    }
+
+    try {
+      const response = await apiFetch("/api/admin/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword,
+          newPassword
+        })
+      });
+
+      if (response.success) {
+        showToast({
+          title: "Success",
+          message: "Password changed successfully. Please login again with your new password.",
+          type: "success"
+        });
+
+        // Close modal
+        changePasswordModal?.close();
+
+        // Logout after 2 seconds
+        setTimeout(async () => {
+          await apiFetch("/api/auth/logout", { method: "POST" });
+          window.location.href = "/";
+        }, 2000);
+      }
+    } catch (error) {
+      showToast({
+        title: "Error",
+        message: error.message || "Failed to change password",
+        type: "error"
+      });
+    }
+  });
+
   // Defaulter List Generation Modal
   const defaulterModal = document.querySelector("[data-defaulter-modal]");
   const defaulterForm = document.querySelector("[data-defaulter-form]");
@@ -780,7 +865,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const tabButtons = document.querySelectorAll("[data-defaulter-tab]");
   const tabContents = document.querySelectorAll("[data-tab-content]");
 
-  const tabs = ["year", "stream", "division", "month", "date", "percentage"];
+  const tabs = ["year", "stream", "division", "daterange", "percentage"];
   let currentTabIndex = 0;
 
   // Open modal
@@ -860,99 +945,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (defaulterExportDirectButton)
       defaulterExportDirectButton.style.display =
         index === tabs.length - 1 ? "block" : "none";
-
-    // Auto-load dates when Date tab is shown (index 4)
-    if (index === 4) {
-      loadAvailableDates();
-    }
   }
-
-  // Fetch available dates based on selected month
-  async function loadAvailableDates() {
-    const monthSelect = document.getElementById("defaulterMonth");
-    const startDateSelect = document.getElementById("defaulterStartDate");
-    const endDateSelect = document.getElementById("defaulterEndDate");
-    const yearSelect = document.getElementById("defaulterYear");
-    
-    if (!startDateSelect || !endDateSelect) {
-      console.warn("Date selectors not found");
-      return;
-    }
-    
-    const yearValue = yearSelect?.value;
-    const month = monthSelect?.value;
-
-    if (!month || month === "ALL") {
-      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
-      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
-      return;
-    }
-
-    try {
-      // Generate dates for the selected month
-      // Extract year - handle both academic year formats (FY, SY, TY) and actual years
-      let year = new Date().getFullYear(); // Default to current year
-      
-      if (yearValue && yearValue !== "ALL") {
-        // Try to extract a 4-digit year from the value
-        const yearMatch = yearValue.match(/\d{4}/);
-        if (yearMatch) {
-          year = parseInt(yearMatch[0]);
-        }
-        // Otherwise use current year for academic year selections (FY, SY, TY)
-      }
-      
-      const monthNum = parseInt(month);
-      
-      // Get number of days in the month
-      const daysInMonth = new Date(year, monthNum, 0).getDate();
-      const dates = [];
-      
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, monthNum - 1, day);
-        const dateStr = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-        dates.push(dateStr);
-      }
-
-      // Populate start date
-      startDateSelect.innerHTML = '<option value="">Select start date...</option>';
-      dates.forEach(date => {
-        const option = document.createElement("option");
-        option.value = date;
-        option.textContent = new Date(date).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
-        });
-        startDateSelect.appendChild(option);
-      });
-
-      // Populate end date
-      endDateSelect.innerHTML = '<option value="">Select end date...</option>';
-      dates.forEach(date => {
-        const option = document.createElement("option");
-        option.value = date;
-        option.textContent = new Date(date).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
-        });
-        endDateSelect.appendChild(option);
-      });
-    } catch (error) {
-      console.error("Failed to generate dates:", error);
-      startDateSelect.innerHTML = '<option value="">Error generating dates</option>';
-      endDateSelect.innerHTML = '<option value="">Error generating dates</option>';
-    }
-  }
-
-  // Add month change listener
-  const monthSelect = document.getElementById("defaulterMonth");
-  monthSelect?.addEventListener("change", loadAvailableDates);
-
-  // Add year change listener
-  const yearSelect = document.getElementById("defaulterYear");
-  yearSelect?.addEventListener("change", loadAvailableDates);
 
   // Tab button clicks
   tabButtons.forEach((btn, index) => {
@@ -1004,7 +997,6 @@ window.addEventListener("DOMContentLoaded", () => {
     const year = formData.get("year");
     const stream = formData.get("stream");
     const division = formData.get("division");
-    const month = formData.get("month");
     const startDate = formData.get("start_date");
     const endDate = formData.get("end_date");
     const threshold = formData.get("threshold");
@@ -1015,7 +1007,6 @@ window.addEventListener("DOMContentLoaded", () => {
       type: "monthly",
     });
 
-    if (month && month !== "ALL") params.append("month", month);
     if (year && year !== "ALL") params.append("year", year);
     if (stream && stream !== "ALL") params.append("stream", stream);
     if (division && division !== "ALL") params.append("division", division);
@@ -1051,10 +1042,11 @@ window.addEventListener("DOMContentLoaded", () => {
           stream === "ALL" ? "All Streams" : stream || "All Streams";
         const divisionLabel =
           division === "ALL" ? "All Divisions" : division || "All Divisions";
-        const monthLabel =
-          month === "ALL" ? "All Months" : month || "All Months";
+        const dateRangeLabel = startDate
+          ? (endDate ? `${startDate} to ${endDate}` : `From ${startDate}`)
+          : "All Dates";
 
-        defaultersSummary.textContent = `${count} defaulters found (${usedThreshold}% threshold) - ${yearLabel}, ${streamLabel}, ${divisionLabel}, Month: ${monthLabel}`;
+        defaultersSummary.textContent = `${count} defaulters found (${usedThreshold}% threshold) - ${yearLabel}, ${streamLabel}, ${divisionLabel}, ${dateRangeLabel}`;
       }
 
       if (defaultersBody) {
@@ -1861,7 +1853,14 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      studentsInfoBody.innerHTML = data.students
+      // Sort by student_id in ascending order
+      const sortedStudents = [...data.students].sort((a, b) => {
+        const idA = String(a.student_id || '').toLowerCase();
+        const idB = String(b.student_id || '').toLowerCase();
+        return idA.localeCompare(idB);
+      });
+
+      studentsInfoBody.innerHTML = sortedStudents
         .map(
           (student) => `
       <tr>
@@ -1938,7 +1937,14 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const rows = students
+      // Sort by student ID in ascending order
+      const sortedStudents = [...students].sort((a, b) => {
+        const idA = String(a.studentId || '').toLowerCase();
+        const idB = String(b.studentId || '').toLowerCase();
+        return idA.localeCompare(idB);
+      });
+
+      const rows = sortedStudents
         .map(
           (s) => `
         <tr>
@@ -2082,7 +2088,14 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const rows = allStudents
+      // Sort by student_id in ascending order
+      const sortedStudents = [...allStudents].sort((a, b) => {
+        const idA = String(a.student_id || '').toLowerCase();
+        const idB = String(b.student_id || '').toLowerCase();
+        return idA.localeCompare(idB);
+      });
+
+      const rows = sortedStudents
         .map(
           (s) => `
         <tr>
@@ -2435,12 +2448,15 @@ window.addEventListener("DOMContentLoaded", () => {
     // ────────────────────────────────────────────────────────────────────────────────
     const searchInput = document.getElementById("adminSearchInput");
     const searchBtn = document.querySelector("[data-search-btn]");
+    const searchResultsModal = document.querySelector("[data-search-results-modal]");
     const studentDetailsModal = document.querySelector("[data-student-details-modal]");
     const teacherDetailsModal = document.querySelector("[data-teacher-details-modal]");
     const sessionAttendanceModal = document.querySelector("[data-session-attendance-modal]");
+    const searchResultsContent = document.querySelector("[data-search-results-content]");
     const studentDetailsContent = document.querySelector("[data-student-details-content]");
     const teacherDetailsContent = document.querySelector("[data-teacher-details-content]");
     const sessionAttendanceContent = document.querySelector("[data-session-attendance-content]");
+    const closeSearchResultsBtn = document.querySelector("[data-close-search-results]");
     const closeStudentDetailsBtn = document.querySelector("[data-close-student-details]");
     const closeTeacherDetailsBtn = document.querySelector("[data-close-teacher-details]");
     const closeSessionAttendanceBtn = document.querySelector("[data-close-session-attendance]");
@@ -2450,30 +2466,40 @@ window.addEventListener("DOMContentLoaded", () => {
 
     async function performSearch() {
       const searchQuery = searchInput?.value?.trim();
-      
+
       if (!searchQuery) {
         showToast({
           title: "Search Required",
-          message: "Please enter a Student ID or Teacher ID",
+          message: "Please enter search term (ID, Name, Roll No, Subject, etc.)",
           type: "warning"
         });
         return;
       }
 
+      let foundResults = false;
+
       try {
         // Try to search for student first
         const studentResponse = await apiFetch(`/api/admin/search/student/${encodeURIComponent(searchQuery)}`);
-        
+
         if (studentResponse.success && studentResponse.data) {
-          // Calculate attendance percentage
-          const student = studentResponse.data;
-          student.attendance_percentage = student.total_sessions > 0 
-            ? (student.attendance_count / student.total_sessions) * 100 
-            : 0;
-          student.total_lectures = student.total_sessions || 0;
-          student.attended_lectures = student.attendance_count || 0;
-          displayStudentDetails(student);
-          return;
+          foundResults = true;
+
+          // Check if multiple results
+          if (Array.isArray(studentResponse.data) && studentResponse.data.length > 1) {
+            displaySearchResults(studentResponse.data, 'student');
+            return;
+          } else {
+            // Single result - show details directly
+            const student = Array.isArray(studentResponse.data) ? studentResponse.data[0] : studentResponse.data;
+            student.attendance_percentage = student.total_sessions > 0
+              ? (student.attendance_count / student.total_sessions) * 100
+              : 0;
+            student.total_lectures = student.total_sessions || 0;
+            student.attended_lectures = student.attendance_count || 0;
+            displayStudentDetails(student);
+            return;
+          }
         }
       } catch (error) {
         console.log("Student not found, trying teacher...");
@@ -2482,29 +2508,147 @@ window.addEventListener("DOMContentLoaded", () => {
       try {
         // Try to search for teacher
         const teacherResponse = await apiFetch(`/api/admin/search/teacher/${encodeURIComponent(searchQuery)}`);
-        
+
         if (teacherResponse.success && teacherResponse.data) {
-          const teacher = teacherResponse.data;
-          teacher.student_count = teacher.assigned_students || 0;
-          displayTeacherDetails(teacher);
-          return;
+          foundResults = true;
+
+          // Check if multiple results
+          if (Array.isArray(teacherResponse.data) && teacherResponse.data.length > 1) {
+            displaySearchResults(teacherResponse.data, 'teacher');
+            return;
+          } else {
+            // Single result - show details directly
+            const teacher = Array.isArray(teacherResponse.data) ? teacherResponse.data[0] : teacherResponse.data;
+            teacher.student_count = teacher.assigned_students || 0;
+            displayTeacherDetails(teacher);
+            return;
+          }
         }
       } catch (error) {
         console.log("Teacher not found");
       }
 
       // Neither found
-      showToast({
-        title: "Not Found",
-        message: `No student or teacher found with ID: ${searchQuery}`,
-        type: "error"
-      });
+      if (!foundResults) {
+        showToast({
+          title: "Not Found",
+          message: `No student or teacher found matching: ${searchQuery}`,
+          type: "error"
+        });
+      }
     }
+
+    function displaySearchResults(results, type) {
+      const searchResultsModal = document.querySelector('[data-search-results-modal]');
+      const searchResultsContent = document.querySelector('[data-search-results-content]');
+
+      if (!searchResultsModal || !searchResultsContent) {
+        console.error('Search results modal elements not found');
+        return;
+      }
+
+      const resultsHtml = results.map((item, index) => {
+        if (type === 'student') {
+          return `
+            <div class="card" style="padding: 1rem; cursor: pointer; transition: all 0.2s;" 
+                 onmouseover="this.style.background='#f0f0f0'" 
+                 onmouseout="this.style.background='white'"
+                 onclick="selectSearchResult(${index}, 'student')">
+              <div style="display: grid; gap: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                  <div>
+                    <strong style="font-size: 1.1rem; color: #2c3e50;">${item.student_name || 'N/A'}</strong>
+                    <div style="color: #7f8c8d; font-size: 0.9rem; margin-top: 0.25rem;">
+                      ID: ${item.student_id || 'N/A'} | Roll No: ${item.roll_no || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #555;">
+                  <span><strong>Year:</strong> ${item.year || 'N/A'}</span>
+                  <span><strong>Stream:</strong> ${item.stream || 'N/A'}</span>
+                  <span><strong>Division:</strong> ${item.division || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        } else if (type === 'teacher') {
+          return `
+            <div class="card" style="padding: 1rem; cursor: pointer; transition: all 0.2s;" 
+                 onmouseover="this.style.background='#f0f0f0'" 
+                 onmouseout="this.style.background='white'"
+                 onclick="selectSearchResult(${index}, 'teacher')">
+              <div style="display: grid; gap: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                  <div>
+                    <strong style="font-size: 1.1rem; color: #2c3e50;">${item.name || 'N/A'}</strong>
+                    <div style="color: #7f8c8d; font-size: 0.9rem; margin-top: 0.25rem;">
+                      ID: ${item.teacher_id || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #555; flex-wrap: wrap;">
+                  <span><strong>Subject:</strong> ${item.subject || 'N/A'}</span>
+                  <span><strong>Year:</strong> ${item.year || 'N/A'}</span>
+                  <span><strong>Stream:</strong> ${item.stream || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        return '';
+      }).join('');
+
+      const typeLabel = type === 'student' ? 'student' : 'teacher';
+      searchResultsContent.innerHTML = `
+        <div style="margin-bottom: 1rem; padding: 0.75rem; background: #e8f4f8; border-radius: 8px; color: #2c3e50;">
+          Found ${results.length} matching ${typeLabel}${results.length > 1 ? 's' : ''}. Click to view details.
+        </div>
+        <div style="display: grid; gap: 0.75rem;">
+          ${resultsHtml}
+        </div>
+      `;
+
+      // Store results for selection
+      window.searchResultsData = results;
+      window.searchResultsType = type;
+
+      searchResultsModal.showModal();
+    }
+
+    function selectSearchResult(index, type) {
+      const results = window.searchResultsData;
+      const searchResultsModal = document.querySelector('[data-search-results-modal]');
+
+      if (!results || !results[index]) return;
+
+      // Close search results modal
+      if (searchResultsModal) {
+        searchResultsModal.close();
+      }
+
+      // Display the selected item details
+      if (type === 'student') {
+        const student = results[index];
+        student.attendance_percentage = student.total_sessions > 0
+          ? (student.attendance_count / student.total_sessions) * 100
+          : 0;
+        student.total_lectures = student.total_sessions || 0;
+        student.attended_lectures = student.attendance_count || 0;
+        displayStudentDetails(student);
+      } else if (type === 'teacher') {
+        const teacher = results[index];
+        teacher.student_count = teacher.assigned_students || 0;
+        displayTeacherDetails(teacher);
+      }
+    }
+
+    // Make selectSearchResult available globally
+    window.selectSearchResult = selectSearchResult;
 
     function displayStudentDetails(student) {
       const attendancePercentage = student.attendance_percentage || 0;
       const attendanceColor = attendancePercentage >= 75 ? '#27ae60' : '#e74c3c';
-      
+
       studentDetailsContent.innerHTML = `
         <div class="card" style="background: #f8f9fa; padding: 1.5rem;">
           <div style="display: grid; gap: 1rem;">
@@ -2559,7 +2703,7 @@ window.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
       `;
-      
+
       // Attach click event to attendance section
       const attendanceSection = studentDetailsContent.querySelector('[data-attendance-clickable]');
       if (attendanceSection) {
@@ -2568,7 +2712,7 @@ window.addEventListener("DOMContentLoaded", () => {
           showSessionAttendance(studentId);
         });
       }
-      
+
       studentDetailsModal?.showModal();
     }
 
@@ -2629,7 +2773,7 @@ window.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
       `;
-      
+
       teacherDetailsModal?.showModal();
     }
 
@@ -2642,13 +2786,13 @@ window.addEventListener("DOMContentLoaded", () => {
             <p style="margin-top: 1rem;">Loading session attendance data...</p>
           </div>
         `;
-        
+
         sessionAttendanceModal?.showModal();
-        
+
         console.log(`Fetching sessions for student: ${studentId}`);
         const response = await apiFetch(`/api/admin/student/${encodeURIComponent(studentId)}/sessions`);
         console.log('Session response:', response);
-        
+
         if (response.success && response.data) {
           allSessionData = response.data;
           if (allSessionData.length === 0) {
@@ -2707,22 +2851,22 @@ window.addEventListener("DOMContentLoaded", () => {
           </thead>
           <tbody>
             ${sessions.map((session, index) => {
-              const isHighlighted = highlightQuery && shouldHighlightRow(session, highlightQuery);
-              const rowStyle = `
+        const isHighlighted = highlightQuery && shouldHighlightRow(session, highlightQuery);
+        const rowStyle = `
                 background: ${isHighlighted ? '#fff3cd' : index % 2 === 0 ? '#f8f9fa' : 'white'};
                 border-bottom: 1px solid #dee2e6;
                 ${isHighlighted ? 'box-shadow: inset 0 0 0 2px #ffc107;' : ''}
               `;
-              const isPresent = session.status?.toUpperCase() === 'P';
-              const statusColor = isPresent ? '#27ae60' : '#e74c3c';
-              const statusText = isPresent ? 'Present' : 'Absent';
-              const formattedDate = session.date ? new Date(session.date).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-              }) : 'N/A';
-              
-              return `
+        const isPresent = session.status?.toUpperCase() === 'P';
+        const statusColor = isPresent ? '#27ae60' : '#e74c3c';
+        const statusText = isPresent ? 'Present' : 'Absent';
+        const formattedDate = session.date ? new Date(session.date).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        }) : 'N/A';
+
+        return `
                 <tr style="${rowStyle}">
                   <td style="padding: 0.75rem;">${session.student_id || 'N/A'}</td>
                   <td style="padding: 0.75rem;">${session.student_name || 'N/A'}</td>
@@ -2745,7 +2889,7 @@ window.addEventListener("DOMContentLoaded", () => {
                   <td style="padding: 0.75rem;">${session.teacher || 'N/A'}</td>
                 </tr>
               `;
-            }).join('')}
+      }).join('')}
           </tbody>
         </table>
       `;
@@ -2775,13 +2919,13 @@ window.addEventListener("DOMContentLoaded", () => {
     // Filter session attendance based on search input
     function filterSessionAttendance() {
       const query = sessionSearchInput?.value?.trim() || '';
-      
+
       if (!query) {
         renderSessionAttendanceTable(allSessionData);
         return;
       }
 
-      const filteredSessions = allSessionData.filter(session => 
+      const filteredSessions = allSessionData.filter(session =>
         shouldHighlightRow(session, query)
       );
 
@@ -2796,12 +2940,22 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    closeSearchResultsBtn?.addEventListener("click", () => {
+      searchResultsModal?.close();
+    });
+
     closeStudentDetailsBtn?.addEventListener("click", () => {
       studentDetailsModal?.close();
     });
 
     closeTeacherDetailsBtn?.addEventListener("click", () => {
       teacherDetailsModal?.close();
+    });
+
+    searchResultsModal?.addEventListener("click", (e) => {
+      if (e.target === searchResultsModal) {
+        searchResultsModal.close();
+      }
     });
 
     studentDetailsModal?.addEventListener("click", (e) => {

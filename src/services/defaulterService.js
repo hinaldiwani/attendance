@@ -89,7 +89,15 @@ class DefaulterService {
         query += ` 
       GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division, mas.month, mas.year_value
       HAVING attendance_percentage < ?
-      ORDER BY s.year DESC, mas.month DESC, s.stream, s.division, s.student_name
+      ORDER BY s.year DESC, mas.month DESC, 
+        CASE 
+          WHEN s.stream = 'BSCIT' THEN 1
+          WHEN s.stream = 'BSCDS' THEN 2
+          ELSE 3
+        END, 
+        s.division, 
+        s.student_id, 
+        s.student_name
     `;
 
         params.push(threshold);
@@ -142,7 +150,7 @@ class DefaulterService {
             whereClause += ` AND DATE(ases.started_at) >= ?`;
             params.push(start_date);
         }
-        
+
         if (end_date) {
             whereClause += ` AND DATE(ases.started_at) <= ?`;
             params.push(end_date);
@@ -175,7 +183,15 @@ class DefaulterService {
         query += ` 
       GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division
       HAVING total_lectures > 0 AND attendance_percentage < ?
-      ORDER BY s.year DESC, s.stream, s.division, s.student_name
+      ORDER BY s.year DESC, 
+        CASE 
+          WHEN s.stream = 'BSCIT' THEN 1
+          WHEN s.stream = 'BSCDS' THEN 2
+          ELSE 3
+        END, 
+        s.division, 
+        s.student_id, 
+        s.student_name
     `;
 
         params.push(threshold);
@@ -241,7 +257,15 @@ class DefaulterService {
         query += ` 
       GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division
       HAVING attendance_percentage < ?
-      ORDER BY s.stream, s.division, s.student_name
+      ORDER BY 
+        CASE 
+          WHEN s.stream = 'BSCIT' THEN 1
+          WHEN s.stream = 'BSCDS' THEN 2
+          ELSE 3
+        END, 
+        s.division, 
+        s.student_id, 
+        s.student_name
     `;
 
         params.push(threshold);

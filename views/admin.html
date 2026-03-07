@@ -49,6 +49,10 @@
         </ul>
       </div>
 
+      <button class="btn secondary" data-change-password title="Change admin password" style="margin-top: 1rem; width: 100%; padding: 0.75rem 1rem;">
+        Change Password
+      </button>
+
     </aside>
 
     <main class="content-panel layout-grid" style="gap: 1.5rem">
@@ -76,12 +80,8 @@
       <div class="card" style="padding: 1rem;">
         <div style="display: flex; gap: 0.75rem; align-items: center;">
           <div style="flex: 1; position: relative;">
-            <input 
-              type="text" 
-              id="adminSearchInput" 
-              placeholder="Search Student & Teacher Details" 
-              style="width: 100%; padding: 0.75rem 1rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
-            />
+            <input type="text" id="adminSearchInput" placeholder="Search: Student/Teacher ID, Name, Roll No, Subject..."
+              style="width: 100%; padding: 0.75rem 1rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;" />
           </div>
           <button class="btn" data-search-btn style="padding: 0.75rem 1.5rem;">
             Search
@@ -646,7 +646,7 @@
             ">
           Division
         </button>
-        <button type="button" class="tab-btn" data-defaulter-tab="month" style="
+        <button type="button" class="tab-btn" data-defaulter-tab="daterange" style="
               padding: 0.75rem 1.25rem;
               border: none;
               background: none;
@@ -655,18 +655,7 @@
               font-weight: 500;
               transition: all 0.2s;
             ">
-          Month
-        </button>
-        <button type="button" class="tab-btn" data-defaulter-tab="date" style="
-              padding: 0.75rem 1.25rem;
-              border: none;
-              background: none;
-              cursor: pointer;
-              border-bottom: 3px solid transparent;
-              font-weight: 500;
-              transition: all 0.2s;
-            ">
-          Date
+          Date Range
         </button>
         <button type="button" class="tab-btn" data-defaulter-tab="percentage" style="
               padding: 0.75rem 1.25rem;
@@ -719,47 +708,34 @@
           </div>
         </div>
 
-        <!-- Month Tab -->
-        <div class="tab-content" data-tab-content="month" style="display: none">
-          <div class="input-group">
-            <label for="defaulterMonth">Month</label>
-            <select id="defaulterMonth" name="month" required>
-              <option value="">Select month...</option>
-              <option value="ALL">All Months</option>
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Date Tab -->
-        <div class="tab-content" data-tab-content="date" style="display: none">
+        <!-- Date Range Tab -->
+        <div class="tab-content" data-tab-content="daterange" style="display: none">
           <div class="input-group">
             <label for="defaulterStartDate">Start Date</label>
-            <select id="defaulterStartDate" name="start_date">
-              <option value="">Select start date...</option>
-            </select>
+            <input type="date" id="defaulterStartDate" name="start_date" style="
+                width: 100%; 
+                padding: 0.75rem; 
+                border: 1px solid #ddd; 
+                border-radius: 8px; 
+                font-size: 1rem;
+                font-family: inherit;
+              " />
             <p class="tagline" style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;">
-              Dates available based on selected month
+              Select the start date for the attendance period
             </p>
           </div>
           <div class="input-group" style="margin-top: 1rem;">
             <label for="defaulterEndDate">End Date</label>
-            <select id="defaulterEndDate" name="end_date">
-              <option value="">Select end date...</option>
-            </select>
+            <input type="date" id="defaulterEndDate" name="end_date" style="
+                width: 100%; 
+                padding: 0.75rem; 
+                border: 1px solid #ddd; 
+                border-radius: 8px; 
+                font-size: 1rem;
+                font-family: inherit;
+              " />
             <p class="tagline" style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;">
-              Leave empty to use all dates from start
+              Select the end date (leave empty for all dates from start)
             </p>
           </div>
         </div>
@@ -1124,6 +1100,31 @@
   </dialog>
 
   <!-- Student Details Modal -->
+  <!-- Search Results Modal -->
+  <dialog data-search-results-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(800px, 90vw);
+        max-height: 85vh;
+        overflow-y: auto;
+      ">
+    <div class="layout-grid" style="gap: 1.5rem">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Search Results</h3>
+        <button type="button" class="btn ghost" data-close-search-results>
+          Close
+        </button>
+      </div>
+      <div data-search-results-content>
+        <div style="text-align: center; padding: 2rem; color: #666;">
+          Loading results...
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Student Details Modal -->
   <dialog data-student-details-modal style="
         border: none;
         border-radius: 16px;
@@ -1163,17 +1164,14 @@
           Close
         </button>
       </div>
-      
+
       <!-- Search Bar for Filtering -->
       <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
-        <input 
-          type="text" 
-          data-session-search-input
-          placeholder="Search by Student ID, Name, Roll No, Year, Stream, Division, Date, Status, or Teacher..." 
-          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem;"
-        />
+        <input type="text" data-session-search-input
+          placeholder="Search by Student ID, Name, Roll No, Year, Stream, Division, Date, Status, or Teacher..."
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem;" />
       </div>
-      
+
       <div data-session-attendance-content style="overflow-x: auto;">
         <div style="text-align: center; padding: 2rem; color: #666;">
           Loading session attendance data...
@@ -1203,6 +1201,76 @@
           Loading teacher details...
         </div>
       </div>
+    </div>
+  </dialog>
+
+  <!-- Change Password Modal -->
+  <dialog data-change-password-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(450px, 90vw);
+        max-height: 85vh;
+        overflow-y: auto;
+      ">
+    <div class="layout-grid" style="gap: 1.5rem">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Change Admin Password</h3>
+        <button type="button" class="btn ghost" data-close-change-password>
+          Close
+        </button>
+      </div>
+      <form data-change-password-form style="display: grid; gap: 1rem;">
+        <div>
+          <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2c3e50;">
+            Current Password
+          </label>
+          <input 
+            type="password" 
+            name="currentPassword" 
+            required 
+            autocomplete="current-password"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
+            placeholder="Enter current password"
+          />
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2c3e50;">
+            New Password
+          </label>
+          <input 
+            type="password" 
+            name="newPassword" 
+            required 
+            autocomplete="new-password"
+            minlength="6"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
+            placeholder="Enter new password (min 6 characters)"
+          />
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2c3e50;">
+            Confirm New Password
+          </label>
+          <input 
+            type="password" 
+            name="confirmPassword" 
+            required 
+            autocomplete="new-password"
+            minlength="6"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
+            placeholder="Re-enter new password"
+          />
+        </div>
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.5rem;">
+          <button type="button" class="btn ghost" data-cancel-change-password>
+            Cancel
+          </button>
+          <button type="submit" class="btn">
+            Change Password
+          </button>
+        </div>
+      </form>
     </div>
   </dialog>
 
