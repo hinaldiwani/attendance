@@ -125,7 +125,57 @@ class DefaulterService {
         SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END) as attended_lectures,
         ROUND((SUM(CASE WHEN ar.status = 'P' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT ases.session_id), 0)) * 100, 2) as attendance_percentage,
         GROUP_CONCAT(DISTINCT ases.subject ORDER BY ases.subject SEPARATOR ', ') as subjects,
-        COUNT(DISTINCT ases.subject) as subject_count
+        COUNT(DISTINCT ases.subject) as subject_count,
+        MIN(MONTH(ases.started_at)) as month,
+        MIN(YEAR(ases.started_at)) as year_value,
+        CASE 
+          WHEN MIN(MONTH(ases.started_at)) = MAX(MONTH(ases.started_at)) THEN
+            CASE MIN(MONTH(ases.started_at))
+              WHEN 1 THEN 'January'
+              WHEN 2 THEN 'February'
+              WHEN 3 THEN 'March'
+              WHEN 4 THEN 'April'
+              WHEN 5 THEN 'May'
+              WHEN 6 THEN 'June'
+              WHEN 7 THEN 'July'
+              WHEN 8 THEN 'August'
+              WHEN 9 THEN 'September'
+              WHEN 10 THEN 'October'
+              WHEN 11 THEN 'November'
+              WHEN 12 THEN 'December'
+            END
+          ELSE CONCAT(
+            CASE MIN(MONTH(ases.started_at))
+              WHEN 1 THEN 'Jan'
+              WHEN 2 THEN 'Feb'
+              WHEN 3 THEN 'Mar'
+              WHEN 4 THEN 'Apr'
+              WHEN 5 THEN 'May'
+              WHEN 6 THEN 'Jun'
+              WHEN 7 THEN 'Jul'
+              WHEN 8 THEN 'Aug'
+              WHEN 9 THEN 'Sep'
+              WHEN 10 THEN 'Oct'
+              WHEN 11 THEN 'Nov'
+              WHEN 12 THEN 'Dec'
+            END,
+            ' - ',
+            CASE MAX(MONTH(ases.started_at))
+              WHEN 1 THEN 'Jan'
+              WHEN 2 THEN 'Feb'
+              WHEN 3 THEN 'Mar'
+              WHEN 4 THEN 'Apr'
+              WHEN 5 THEN 'May'
+              WHEN 6 THEN 'Jun'
+              WHEN 7 THEN 'Jul'
+              WHEN 8 THEN 'Aug'
+              WHEN 9 THEN 'Sep'
+              WHEN 10 THEN 'Oct'
+              WHEN 11 THEN 'Nov'
+              WHEN 12 THEN 'Dec'
+            END
+          )
+        END as month_name
       FROM student_details_db s
       LEFT JOIN attendance_records ar ON s.student_id = ar.student_id
       LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
