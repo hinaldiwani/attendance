@@ -1697,22 +1697,22 @@ window.addEventListener("DOMContentLoaded", () => {
   const mappingForm = document.querySelector("[data-mapping-form]");
   const currentSubjectSpan = document.querySelector("[data-current-subject]");
   const mappingsContainer = document.querySelector("[data-mappings-container]");
-  
+
   const mappingYearSelect = document.querySelector("[data-mapping-year-select]");
   const addMappingYearBtn = document.querySelector("[data-add-mapping-year]");
   const mappingYearList = document.querySelector("[data-mapping-year-list]");
-  
+
   const mappingSemesterSelect = document.querySelector("[data-mapping-semester-select]");
   const addMappingSemesterBtn = document.querySelector("[data-add-mapping-semester]");
   const mappingSemesterList = document.querySelector("[data-mapping-semester-list]");
-  
+
   const mappingStreamSelect = document.querySelector("[data-mapping-stream-select]");
   const addMappingStreamBtn = document.querySelector("[data-add-mapping-stream]");
   const mappingStreamList = document.querySelector("[data-mapping-stream-list]");
-  
+
   const saveMappingBtn = document.querySelector("[data-save-mapping]");
   const cancelMappingBtn = document.querySelector("[data-cancel-mapping]");
-  
+
   const streamSelect = document.querySelector("[data-stream-select]");
   const addStreamBtn = document.querySelector("[data-add-stream-btn]");
   const streamList = document.querySelector("[data-stream-list]");
@@ -1756,7 +1756,7 @@ window.addEventListener("DOMContentLoaded", () => {
     subjectMappings.forEach((mapping, index) => {
       const card = document.createElement("div");
       card.style.cssText = "background: white; border: 2px solid #0284c7; border-radius: 6px; padding: 1rem; display: flex; justify-content: space-between; align-items: start;";
-      
+
       const content = document.createElement("div");
       content.innerHTML = `
         <div style="font-weight: 600; color: #0284c7; margin-bottom: 0.5rem;">${mapping.subject}</div>
@@ -1766,7 +1766,7 @@ window.addEventListener("DOMContentLoaded", () => {
           <strong>Streams:</strong> ${mapping.streams.join(', ')}
         </div>
       `;
-      
+
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.textContent = "×";
@@ -1781,7 +1781,7 @@ window.addEventListener("DOMContentLoaded", () => {
           duration: 2000,
         });
       });
-      
+
       card.appendChild(content);
       card.appendChild(removeBtn);
       mappingsContainer.appendChild(card);
@@ -1800,7 +1800,7 @@ window.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
-    
+
     // Check if subject already mapped
     if (subjectMappings.some(m => m.subject.toLowerCase() === value.toLowerCase())) {
       showToast({
@@ -1811,7 +1811,7 @@ window.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
-    
+
     currentSubject = value;
     currentMapping.years = [];
     currentMapping.semesters = [];
@@ -1902,19 +1902,19 @@ window.addEventListener("DOMContentLoaded", () => {
     if (selectedYear && !currentMapping.years.includes(selectedYear)) {
       currentMapping.years.push(selectedYear);
     }
-    
+
     // Auto-add selected semester if not already added
     const selectedSemester = mappingSemesterSelect?.value;
     if (selectedSemester && !currentMapping.semesters.includes(selectedSemester)) {
       currentMapping.semesters.push(selectedSemester);
     }
-    
+
     // Auto-add selected stream if not already added
     const selectedStream = mappingStreamSelect?.value;
     if (selectedStream && !currentMapping.streams.includes(selectedStream)) {
       currentMapping.streams.push(selectedStream);
     }
-    
+
     // Now check if we have at least one year, semester, and stream
     if (currentMapping.years.length === 0 || currentMapping.semesters.length === 0 || currentMapping.streams.length === 0) {
       showToast({
@@ -1925,17 +1925,17 @@ window.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
-    
+
     subjectMappings.push({
       subject: currentSubject,
       years: [...currentMapping.years],
       semesters: [...currentMapping.semesters],
       streams: [...currentMapping.streams]
     });
-    
+
     displaySavedMappings();
     resetMappingForm();
-    
+
     showToast({
       title: "Mapping Saved",
       message: `${currentSubject} mapping saved successfully`,
@@ -1996,7 +1996,7 @@ window.addEventListener("DOMContentLoaded", () => {
     currentSubject = null;
     currentMapping.years = [];
     currentMapping.semesters = [];
-    
+
     displaySavedMappings();
     renderStreamBadges();
     resetMappingForm();

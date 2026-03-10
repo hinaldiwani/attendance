@@ -1047,7 +1047,8 @@
     <div
       style="background: #e0f2fe; border-left: 4px solid #0284c7; padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 4px;">
       <p style="margin: 0; color: #0c4a6e; font-size: 0.9rem;">
-        💡 <strong>Workflow:</strong> Add subject → Map to year(s), semester(s), and stream(s) → Save mapping → Repeat for more subjects
+        💡 <strong>Workflow:</strong> Add subject → Map to year(s), semester(s), and stream(s) → Save mapping → Repeat
+        for more subjects
       </p>
     </div>
     <form data-add-teacher-form class="layout-grid" style="gap: 1rem">
@@ -1065,16 +1066,18 @@
       <!-- Subject Mapping Builder -->
       <div class="form-group" style="grid-column: 1 / -1;">
         <label>Subject Mappings <span style="color: red;">*</span></label>
-        
+
         <!-- Step 1: Add Subject -->
         <div style="background: #f5f5f5; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
           <div style="display: flex; gap: 0.5rem; align-items: flex-start; margin-bottom: 1rem;">
             <div style="flex: 1;">
-              <label style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem; display: block;">Step 1: Enter Subject Name</label>
+              <label style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem; display: block;">Step 1:
+                Enter Subject Name</label>
               <input type="text" data-subject-input placeholder="e.g., Mathematics"
                 style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
             </div>
-            <button type="button" class="btn primary" data-add-subject-btn style="padding: 0.5rem 1rem; margin-top: 1.5rem;">Add Subject</button>
+            <button type="button" class="btn primary" data-add-subject-btn
+              style="padding: 0.5rem 1rem; margin-top: 1.5rem;">Add Subject</button>
           </div>
 
           <!-- Step 2: Mapping Form (Initially Hidden) -->
@@ -1082,12 +1085,14 @@
             <p style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem; color: #0284c7;">
               Step 2: Map "<span data-current-subject></span>" to Year(s), Semester(s), and Stream(s)
             </p>
-            
+
             <!-- Years Selection -->
             <div style="margin-bottom: 1rem;">
-              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Year(s) <span style="color: red;">*</span></label>
+              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Year(s) <span
+                  style="color: red;">*</span></label>
               <div style="display: flex; gap: 0.5rem;">
-                <select data-mapping-year-select style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <select data-mapping-year-select
+                  style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                   <option value="">Select year...</option>
                   <option value="FY">FY (First Year)</option>
                   <option value="SY">SY (Second Year)</option>
@@ -1095,14 +1100,17 @@
                 </select>
                 <button type="button" class="btn primary" data-add-mapping-year style="padding: 0.5rem 1rem;">+</button>
               </div>
-              <div data-mapping-year-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+              <div data-mapping-year-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+              </div>
             </div>
 
             <!-- Semesters Selection -->
             <div style="margin-bottom: 1rem;">
-              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Semester(s) <span style="color: red;">*</span></label>
+              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Semester(s) <span
+                  style="color: red;">*</span></label>
               <div style="display: flex; gap: 0.5rem;">
-                <select data-mapping-semester-select style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <select data-mapping-semester-select
+                  style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                   <option value="">Select semester...</option>
                   <option value="1">1</option>
                   <option value="2">2</option>
@@ -1111,25 +1119,31 @@
                   <option value="5">5</option>
                   <option value="6">6</option>
                 </select>
-                <button type="button" class="btn primary" data-add-mapping-semester style="padding: 0.5rem 1rem;">+</button>
+                <button type="button" class="btn primary" data-add-mapping-semester
+                  style="padding: 0.5rem 1rem;">+</button>
               </div>
-              <div data-mapping-semester-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+              <div data-mapping-semester-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+              </div>
             </div>
 
             <!-- Streams Selection -->
             <div style="margin-bottom: 1rem;">
-              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Stream(s) <span style="color: red;">*</span></label>
+              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Stream(s) <span
+                  style="color: red;">*</span></label>
               <div style="display: flex; gap: 0.5rem;">
-                <select data-mapping-stream-select style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <select data-mapping-stream-select
+                  style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                   <option value="">Select stream...</option>
                   <option value="BSCIT">BSCIT</option>
                   <option value="BMS">BMS</option>
                   <option value="BAF">BAF</option>
                   <option value="BBI">BBI</option>
                 </select>
-                <button type="button" class="btn primary" data-add-mapping-stream style="padding: 0.5rem 1rem;">+</button>
+                <button type="button" class="btn primary" data-add-mapping-stream
+                  style="padding: 0.5rem 1rem;">+</button>
               </div>
-              <div data-mapping-stream-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+              <div data-mapping-stream-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+              </div>
             </div>
 
             <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">

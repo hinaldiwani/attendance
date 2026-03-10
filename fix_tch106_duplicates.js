@@ -20,7 +20,7 @@ async function consolidateDuplicates() {
     `);
 
     console.log(`📊 Found ${teachers.length} teachers with duplicate records:\n`);
-    
+
     teachers.forEach(t => {
       console.log(`   - ${t.teacher_id}: ${t.count} records`);
     });
@@ -125,7 +125,7 @@ async function consolidateDuplicates() {
     }
 
     await connection.commit();
-    
+
     console.log(`\n🎉 Consolidation complete!`);
     console.log(`   ${consolidatedCount} teachers consolidated`);
     console.log(`   Each teacher now has a single record with comma-separated values\n`);
