@@ -30,12 +30,14 @@ export function parseTeacherImport(filePath) {
 
 export async function upsertStudents(students, actorId) {
   if (!Array.isArray(students) || students.length === 0) {
+    console.log("⚠️  No students to import");
     return { inserted: 0 };
   }
 
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    console.log("   Transaction started for students import");
 
     let insertedCount = 0;
     const BATCH_SIZE = 100; // Process 100 students at a time
@@ -67,12 +69,16 @@ export async function upsertStudents(students, actorId) {
           division = VALUES(division)
       `;
 
-      await connection.query(sql, params);
-      insertedCount += batch.length;
-
-      console.log(
-        `✓ Processed batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertedCount}/${students.length} students`,
-      );
+      try {
+        await connection.query(sql, params);
+        insertedCount += batch.length;
+        console.log(
+          `   ✓ Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertedCount}/${students.length} students`,
+        );
+      } catch (batchError) {
+        console.error(`   ❌ Batch ${Math.floor(i / BATCH_SIZE) + 1} failed:`, batchError.message);
+        throw batchError;
+      }
     }
 
     await logActivity(connection, "admin", actorId, "IMPORT_STUDENTS", {
@@ -81,8 +87,10 @@ export async function upsertStudents(students, actorId) {
     });
 
     await connection.commit();
+    console.log("   ✓ Transaction committed for students");
     return { inserted: insertedCount };
   } catch (error) {
+    console.error("   ❌ Rolling back students transaction due to error:", error.message);
     await connection.rollback();
     throw error;
   } finally {
@@ -92,12 +100,14 @@ export async function upsertStudents(students, actorId) {
 
 export async function upsertTeachers(teachers, actorId) {
   if (!Array.isArray(teachers) || teachers.length === 0) {
+    console.log("⚠️  No teachers to import");
     return { inserted: 0 };
   }
 
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    console.log("   Transaction started for teachers import");
 
     let insertedCount = 0;
     const BATCH_SIZE = 100; // Process 100 teachers at a time
@@ -127,12 +137,16 @@ export async function upsertTeachers(teachers, actorId) {
           name = VALUES(name)
       `;
 
-      await connection.query(sql, params);
-      insertedCount += batch.length;
-
-      console.log(
-        `✓ Processed batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertedCount}/${teachers.length} teachers`,
-      );
+      try {
+        await connection.query(sql, params);
+        insertedCount += batch.length;
+        console.log(
+          `   ✓ Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertedCount}/${teachers.length} teachers`,
+        );
+      } catch (batchError) {
+        console.error(`   ❌ Batch ${Math.floor(i / BATCH_SIZE) + 1} failed:`, batchError.message);
+        throw batchError;
+      }
     }
 
     await logActivity(connection, "admin", actorId, "IMPORT_TEACHERS", {
@@ -141,8 +155,10 @@ export async function upsertTeachers(teachers, actorId) {
     });
 
     await connection.commit();
+    console.log("   ✓ Transaction committed for teachers");
     return { inserted: insertedCount };
   } catch (error) {
+    console.error("   ❌ Rolling back teachers transaction due to error:", error.message);
     await connection.rollback();
     throw error;
   } finally {
@@ -206,16 +222,21 @@ export async function autoMapStudentsToTeachers(actorId) {
     await connection.query(`DELETE FROM teacher_student_map`);
 
     // Auto-map students to teachers based on YEAR, STREAM, and DIVISION
+    // Teachers can have comma-separated values (e.g. "FY, SY" or "BSCIT, BSCDS")
+    // Students have single values, so we use FIND_IN_SET to match within comma-separated lists
     // Teacher division may be comma-separated (e.g. "A,B,C"), student division is a single letter
-    // Now includes subject, year, stream, semester to prevent cross-year mappings
+    // Only maps Active teachers to students
     const [result] = await connection.query(`
       INSERT INTO teacher_student_map (teacher_id, subject, year, stream, semester, student_id)
       SELECT DISTINCT t.teacher_id, t.subject, t.year, t.stream, t.semester, s.student_id
       FROM teacher_details_db t
       INNER JOIN student_details_db s 
-        ON t.year = s.year 
-        AND t.stream = s.stream
-        AND FIND_IN_SET(s.division, t.division) > 0
+        ON FIND_IN_SET(s.year, REPLACE(t.year, ' ', '')) > 0
+        AND FIND_IN_SET(s.stream, REPLACE(t.stream, ' ', '')) > 0
+        AND FIND_IN_SET(s.division, REPLACE(t.division, ' ', '')) > 0
+      WHERE (t.status = 'Active' OR t.status IS NULL)
+        AND t.division IS NOT NULL 
+        AND t.division != ''
       ON DUPLICATE KEY UPDATE created_at = CURRENT_TIMESTAMP
     `);
 

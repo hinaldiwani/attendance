@@ -208,6 +208,7 @@
               justify-content: space-between;
               align-items: center;
               gap: 0.5rem;
+              margin-bottom: 1rem;
             ">
           <div>
             <h3>Teachers Information</h3>
@@ -218,6 +219,27 @@
           </div>
           <button class="btn ghost" data-refresh-teachers>Refresh</button>
         </div>
+
+        <!-- Teacher Search and Actions -->
+        <div style="
+              display: flex;
+              gap: 1rem;
+              margin-bottom: 1rem;
+              flex-wrap: wrap;
+              align-items: center;
+            ">
+          <div style="flex: 1; min-width: 250px;">
+            <input type="text" placeholder="Search teachers by ID, name, subject, year, stream..."
+              data-teacher-search-input
+              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+          </div>
+          <button class="btn primary" data-add-teacher-btn>+ Add Teacher</button>
+          <button class="btn primary" data-edit-teacher-btn>✏️ Edit Teacher</button>
+          <button class="btn warning" data-remove-teacher-btn>Remove Teacher</button>
+          <button class="btn secondary" data-consolidate-records-btn>🔧 Fix Duplicates</button>
+          <button class="btn info" data-view-status-btn>🔄 Refresh</button>
+        </div>
+
         <div class="table-wrapper" style="margin-top: 1rem; max-height: 70vh; overflow-y: auto">
           <table>
             <thead>
@@ -230,11 +252,12 @@
                 <th>Semester</th>
                 <th>Divisions</th>
                 <th>Student Count</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody data-teachers-info-body>
               <tr>
-                <td colspan="8">Loading...</td>
+                <td colspan="9">Loading...</td>
               </tr>
             </tbody>
           </table>
@@ -1009,6 +1032,249 @@
         </table>
       </div>
     </div>
+  </dialog>
+
+  <!-- Add Teacher Modal -->
+  <dialog data-add-teacher-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(700px, 90vw);
+        max-height: 85vh;
+        overflow-y: auto;
+      ">
+    <h3 style="margin-bottom: 1.5rem;">Add New Teacher</h3>
+    <div
+      style="background: #e0f2fe; border-left: 4px solid #0284c7; padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 4px;">
+      <p style="margin: 0; color: #0c4a6e; font-size: 0.9rem;">
+        💡 <strong>Workflow:</strong> Add subject → Map to year(s), semester(s), and stream(s) → Save mapping → Repeat for more subjects
+      </p>
+    </div>
+    <form data-add-teacher-form class="layout-grid" style="gap: 1rem">
+      <div class="form-group">
+        <label>Teacher ID <span style="color: red;">*</span></label>
+        <input type="text" name="teacherId" placeholder="e.g., TCH101" required
+          style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+      </div>
+      <div class="form-group">
+        <label>Name <span style="color: red;">*</span></label>
+        <input type="text" name="name" placeholder="Teacher's full name" required
+          style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+      </div>
+
+      <!-- Subject Mapping Builder -->
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label>Subject Mappings <span style="color: red;">*</span></label>
+        
+        <!-- Step 1: Add Subject -->
+        <div style="background: #f5f5f5; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+          <div style="display: flex; gap: 0.5rem; align-items: flex-start; margin-bottom: 1rem;">
+            <div style="flex: 1;">
+              <label style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem; display: block;">Step 1: Enter Subject Name</label>
+              <input type="text" data-subject-input placeholder="e.g., Mathematics"
+                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+            </div>
+            <button type="button" class="btn primary" data-add-subject-btn style="padding: 0.5rem 1rem; margin-top: 1.5rem;">Add Subject</button>
+          </div>
+
+          <!-- Step 2: Mapping Form (Initially Hidden) -->
+          <div data-mapping-form style="display: none; border-top: 2px solid #ddd; padding-top: 1rem;">
+            <p style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem; color: #0284c7;">
+              Step 2: Map "<span data-current-subject></span>" to Year(s), Semester(s), and Stream(s)
+            </p>
+            
+            <!-- Years Selection -->
+            <div style="margin-bottom: 1rem;">
+              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Year(s) <span style="color: red;">*</span></label>
+              <div style="display: flex; gap: 0.5rem;">
+                <select data-mapping-year-select style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                  <option value="">Select year...</option>
+                  <option value="FY">FY (First Year)</option>
+                  <option value="SY">SY (Second Year)</option>
+                  <option value="TY">TY (Third Year)</option>
+                </select>
+                <button type="button" class="btn primary" data-add-mapping-year style="padding: 0.5rem 1rem;">+</button>
+              </div>
+              <div data-mapping-year-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+            </div>
+
+            <!-- Semesters Selection -->
+            <div style="margin-bottom: 1rem;">
+              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Semester(s) <span style="color: red;">*</span></label>
+              <div style="display: flex; gap: 0.5rem;">
+                <select data-mapping-semester-select style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                  <option value="">Select semester...</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                </select>
+                <button type="button" class="btn primary" data-add-mapping-semester style="padding: 0.5rem 1rem;">+</button>
+              </div>
+              <div data-mapping-semester-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+            </div>
+
+            <!-- Streams Selection -->
+            <div style="margin-bottom: 1rem;">
+              <label style="font-size: 0.875rem; margin-bottom: 0.25rem; display: block;">Select Stream(s) <span style="color: red;">*</span></label>
+              <div style="display: flex; gap: 0.5rem;">
+                <select data-mapping-stream-select style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                  <option value="">Select stream...</option>
+                  <option value="BSCIT">BSCIT</option>
+                  <option value="BMS">BMS</option>
+                  <option value="BAF">BAF</option>
+                  <option value="BBI">BBI</option>
+                </select>
+                <button type="button" class="btn primary" data-add-mapping-stream style="padding: 0.5rem 1rem;">+</button>
+              </div>
+              <div data-mapping-stream-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+              <button type="button" class="btn ghost" data-cancel-mapping>Cancel</button>
+              <button type="button" class="btn primary" data-save-mapping>Save Mapping</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Saved Mappings Display -->
+        <div data-mappings-container style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <!-- Mappings will be displayed here -->
+        </div>
+      </div>
+
+      <!-- Multi-select Streams -->
+      <div class="form-group" style="display: none;">
+        <label>Stream(s) <span style="color: red;">*</span></label>
+        <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+          <div style="flex: 1;">
+            <select data-stream-select
+              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+              <option value="">Select stream...</option>
+              <option value="BSCIT">BSCIT</option>
+              <option value="BSCDS">BSCDS</option>
+              <option value="BSC">BSC</option>
+            </select>
+            <div data-stream-list style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+          </div>
+          <button type="button" class="btn primary" data-add-stream-btn style="padding: 0.5rem 1rem;">+</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Division(s) <span style="color: red;">*</span></label>
+        <input type="text" name="division" placeholder="e.g., A,B,C" required
+          style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+        <small style="color: #666; font-size: 0.85rem;">Comma-separated uppercase letters</small>
+      </div>
+      <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem;">
+        <button type="button" class="btn ghost" data-cancel-add-teacher>Cancel</button>
+        <button type="submit" class="btn primary">Add Teacher</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Edit Teacher Modal -->
+  <dialog data-edit-teacher-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(600px, 90vw);
+      ">
+    <h3 style="margin-bottom: 1.5rem;">✏️ Edit Teacher</h3>
+    <form data-edit-teacher-form class="layout-grid" style="gap: 1rem">
+      <div class="form-group">
+        <label>Teacher ID <span style="color: red;">*</span></label>
+        <input type="text" name="teacherId" placeholder="Enter Teacher ID to edit" required
+          style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+        <button type="button" class="btn secondary" data-load-teacher-btn style="margin-top: 0.5rem; width: 100%;">Load
+          Teacher Data</button>
+      </div>
+      <div data-edit-teacher-fields style="display: none;">
+        <div class="form-group">
+          <label>Name <span style="color: red;">*</span></label>
+          <input type="text" name="name" placeholder="Teacher's full name" required
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+        </div>
+        <div class="form-group">
+          <label>Subject <span style="color: red;">*</span></label>
+          <input type="text" name="subject" placeholder="e.g., Mathematics" required
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+        </div>
+        <div class="form-group">
+          <label>Year <span style="color: red;">*</span></label>
+          <select name="year" required
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="">Select year...</option>
+            <option value="FY">FY (First Year)</option>
+            <option value="SY">SY (Second Year)</option>
+            <option value="TY">TY (Third Year)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Stream <span style="color: red;">*</span></label>
+          <select name="stream" required
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="">Select stream...</option>
+            <option value="BSCIT">BSCIT</option>
+            <option value="BSCDS">BSCDS</option>
+            <option value="BSC">BSC</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Semester <span style="color: red;">*</span></label>
+          <select name="semester" required
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="">Select semester...</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Division(s) <span style="color: red;">*</span></label>
+          <input type="text" name="division" placeholder="e.g., A,B,C" required
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+          <small style="color: #666; font-size: 0.85rem;">Comma-separated uppercase letters</small>
+        </div>
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem;">
+          <button type="button" class="btn ghost" data-cancel-edit-teacher>Cancel</button>
+          <button type="submit" class="btn primary">Update Teacher</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Remove Teacher Modal -->
+  <dialog data-remove-teacher-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(500px, 90vw);
+      ">
+    <h3 style="margin-bottom: 1.5rem;">Remove Teacher</h3>
+    <form data-remove-teacher-form class="layout-grid" style="gap: 1rem">
+      <div class="form-group">
+        <label>Teacher ID <span style="color: red;">*</span></label>
+        <input type="text" name="teacherId" placeholder="Enter Teacher ID to remove" required
+          style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" />
+      </div>
+      <div style="background: #fff3cd; padding: 1rem; border-radius: 8px; border-left: 4px solid #ffc107;">
+        <p style="margin: 0; color: #856404;">
+          <strong>⚠️ Warning:</strong> This will set the teacher's status to Inactive. They won't be able to sign in or
+          start sessions.
+        </p>
+      </div>
+      <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem;">
+        <button type="button" class="btn ghost" data-cancel-remove-teacher>Cancel</button>
+        <button type="submit" class="btn warning">Remove Teacher</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- Admin Defaulter Lists History Modal -->

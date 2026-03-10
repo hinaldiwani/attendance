@@ -22,9 +22,9 @@ export async function teacherDashboard(req, res, next) {
   try {
     const teacherId = req.session.user.id;
 
-    // Get teacher details including subject and stream
+    // Get teacher details including subject, stream, and status
     const [teacher] = await pool.query(
-      `SELECT teacher_id, name, subject, stream
+      `SELECT teacher_id, name, subject, stream, status
        FROM teacher_details_db
        WHERE teacher_id = ?`,
       [teacherId],
@@ -76,8 +76,14 @@ export async function teacherDashboard(req, res, next) {
       ),
     ].sort();
 
+    // Check if teacher is inactive
+    const teacherStatus = teacherInfo.status || 'Active';
+    const isInactive = teacherStatus === 'Inactive';
+
     return res.json({
       ...stats,
+      teacherStatus,
+      isInactive,
       teacherInfo: {
         id: teacherInfo.teacher_id,
         name: teacherInfo.name,
@@ -190,6 +196,19 @@ export async function startAttendance(req, res, next) {
   try {
     const teacherId = req.session.user.id;
     const { subject, year, semester, division, stream } = req.body;
+
+    // Check if teacher is inactive
+    const [teacherStatus] = await pool.query(
+      `SELECT status FROM teacher_details_db WHERE teacher_id = ? LIMIT 1`,
+      [teacherId]
+    );
+
+    if (teacherStatus.length > 0 && teacherStatus[0].status === 'Inactive') {
+      return res.status(403).json({
+        message: "Your account is inactive. You cannot start attendance sessions. Please contact the administrator.",
+        isInactive: true
+      });
+    }
 
     if (!subject || !year || !semester || !division || !stream) {
       return res.status(400).json({

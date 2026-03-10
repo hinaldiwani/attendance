@@ -88,15 +88,19 @@ export async function confirmImport(req, res, next) {
     const queue = ensureImportSession(req);
     const { mappings = [], clearExisting = false } = req.body;
 
+    console.log(`📦 Starting import: ${queue.students.length} students, ${queue.teachers.length} teachers`);
+
     const results = {
       students: { inserted: 0 },
       teachers: { inserted: 0 },
       mappings: { inserted: 0 },
       cleared: { students: 0, teachers: 0 },
+      errors: [],
     };
 
     // Clear existing data if requested
     if (clearExisting) {
+      console.log("🗑️  Clearing existing data...");
       const connection = await pool.getConnection();
       try {
         await connection.beginTransaction();
@@ -109,6 +113,7 @@ export async function confirmImport(req, res, next) {
             "DELETE FROM student_details_db",
           );
           results.cleared.students = studentsResult.affectedRows;
+          console.log(`   Cleared ${results.cleared.students} existing students`);
         }
 
         if (queue.teachers.length) {
@@ -116,11 +121,14 @@ export async function confirmImport(req, res, next) {
             "DELETE FROM teacher_details_db",
           );
           results.cleared.teachers = teachersResult.affectedRows;
+          console.log(`   Cleared ${results.cleared.teachers} existing teachers`);
         }
 
         await connection.commit();
+        console.log("✅ Existing data cleared successfully");
       } catch (error) {
         await connection.rollback();
+        console.error("❌ Error clearing data:", error.message);
         throw error;
       } finally {
         connection.release();
@@ -128,17 +136,33 @@ export async function confirmImport(req, res, next) {
     }
 
     if (queue.students.length) {
-      results.students = await upsertStudents(
-        queue.students,
-        req.session.user.id,
-      );
+      console.log("📚 Importing students...");
+      try {
+        results.students = await upsertStudents(
+          queue.students,
+          req.session.user.id,
+        );
+        console.log(`✅ Imported ${results.students.inserted} students successfully`);
+      } catch (error) {
+        console.error("❌ Student import error:", error.message);
+        results.errors.push({ type: 'students', message: error.message });
+        throw error; // Re-throw to stop the import
+      }
     }
 
     if (queue.teachers.length) {
-      results.teachers = await upsertTeachers(
-        queue.teachers,
-        req.session.user.id,
-      );
+      console.log("👨‍🏫 Importing teachers...");
+      try {
+        results.teachers = await upsertTeachers(
+          queue.teachers,
+          req.session.user.id,
+        );
+        console.log(`✅ Imported ${results.teachers.inserted} teachers successfully`);
+      } catch (error) {
+        console.error("❌ Teacher import error:", error.message);
+        results.errors.push({ type: 'teachers', message: error.message });
+        throw error; // Re-throw to stop the import
+      }
     }
 
     // Manual mappings are skipped - autoMapStudentsToTeachers handles all mappings correctly
@@ -149,13 +173,16 @@ export async function confirmImport(req, res, next) {
 
     // Automatically map students to teachers based on year and stream
     if (queue.students.length || queue.teachers.length) {
+      console.log("🔗 Auto-mapping students to teachers...");
       try {
         const autoMappingResult = await autoMapStudentsToTeachers(
           req.session.user.id,
         );
         results.autoMappings = autoMappingResult;
+        console.log(`✅ Mapped ${autoMappingResult.mapped} student-teacher relationships`);
       } catch (error) {
-        console.error("Auto-mapping error:", error);
+        console.error("❌ Auto-mapping error:", error.message);
+        results.errors.push({ type: 'mapping', message: error.message });
         // Continue even if auto-mapping fails
       }
     }
@@ -171,11 +198,16 @@ export async function confirmImport(req, res, next) {
       mappingsCount: results.mappings.inserted,
     });
 
+    console.log("✅ Import completed successfully");
+    console.log(`   Students: ${results.students.inserted}, Teachers: ${results.teachers.inserted}, Mappings: ${results.autoMappings?.mapped || 0}`);
+
     return res.json({
       message: "Import confirmed successfully",
       results,
     });
   } catch (error) {
+    console.error("❌ Import process failed:", error.message);
+    console.error("   Full error:", error);
     return next(error);
   }
 }
@@ -1785,86 +1817,6 @@ export async function searchStudent(req, res, next) {
   }
 }
 
-// Search for teacher by ID or name
-export async function searchTeacher(req, res, next) {
-  try {
-    const { teacherId } = req.params;
-
-    if (!teacherId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Search query is required'
-      });
-    }
-
-    const searchTerm = `%${teacherId}%`;
-    const trimmedInput = teacherId.trim();
-    const isSingleLetter = trimmedInput.length === 1 && /^[a-zA-Z]$/.test(trimmedInput);
-
-    // Get teacher details with assigned students count - search across multiple fields
-    // Use DISTINCT to get unique teacher and subquery for student count
-    // If single letter, search only division field
-    let query, params;
-
-    if (isSingleLetter) {
-      query = `SELECT 
-        t.teacher_id,
-        t.name,
-        GROUP_CONCAT(DISTINCT t.subject ORDER BY t.subject SEPARATOR ', ') as subject,
-        GROUP_CONCAT(DISTINCT t.year ORDER BY t.year SEPARATOR ', ') as year,
-        GROUP_CONCAT(DISTINCT t.stream ORDER BY t.stream SEPARATOR ', ') as stream,
-        GROUP_CONCAT(DISTINCT t.division ORDER BY t.division SEPARATOR ', ') as division,
-        GROUP_CONCAT(DISTINCT t.semester ORDER BY t.semester SEPARATOR ', ') as semester,
-        (SELECT COUNT(DISTINCT student_id) FROM teacher_student_map WHERE teacher_id = t.teacher_id) as assigned_students,
-        (SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = t.teacher_id) as sessions_taken
-      FROM teacher_details_db t
-      WHERE t.division = ?
-      GROUP BY t.teacher_id, t.name
-      ORDER BY t.teacher_id ASC`;
-      params = [trimmedInput.toUpperCase()];
-    } else {
-      query = `SELECT 
-        t.teacher_id,
-        t.name,
-        GROUP_CONCAT(DISTINCT t.subject ORDER BY t.subject SEPARATOR ', ') as subject,
-        GROUP_CONCAT(DISTINCT t.year ORDER BY t.year SEPARATOR ', ') as year,
-        GROUP_CONCAT(DISTINCT t.stream ORDER BY t.stream SEPARATOR ', ') as stream,
-        GROUP_CONCAT(DISTINCT t.division ORDER BY t.division SEPARATOR ', ') as division,
-        GROUP_CONCAT(DISTINCT t.semester ORDER BY t.semester SEPARATOR ', ') as semester,
-        (SELECT COUNT(DISTINCT student_id) FROM teacher_student_map WHERE teacher_id = t.teacher_id) as assigned_students,
-        (SELECT COUNT(*) FROM attendance_sessions WHERE teacher_id = t.teacher_id) as sessions_taken
-      FROM teacher_details_db t
-      WHERE t.teacher_id LIKE ?
-        OR t.name LIKE ?
-        OR t.subject LIKE ?
-        OR t.year LIKE ?
-        OR t.stream LIKE ?
-        OR t.division LIKE ?
-      GROUP BY t.teacher_id, t.name
-      ORDER BY t.teacher_id ASC`;
-      params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm];
-    }
-
-    const [teachers] = await pool.query(query, params);
-
-    if (!teachers || teachers.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No teacher found matching your search'
-      });
-    }
-
-    // If multiple results, return array; if single result, return single object
-    return res.json({
-      success: true,
-      data: teachers.length === 1 ? teachers[0] : teachers
-    });
-  } catch (error) {
-    console.error('Search teacher error:', error);
-    return next(error);
-  }
-}
-
 // Get student session attendance details
 export async function getStudentSessionAttendance(req, res, next) {
   try {
@@ -2004,5 +1956,1025 @@ export async function changeAdminPassword(req, res, next) {
     }
 
     return next(error);
+  }
+}
+// ===================================================================
+// TEACHER MANAGEMENT FUNCTIONS
+// ===================================================================
+
+/**
+ * Search for teachers based on any field
+ * GET /api/admin/teachers/search/:query
+ */
+export async function searchTeacher(req, res, next) {
+  try {
+    const { query } = req.params;
+
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
+      });
+    }
+
+    const searchTerm = `%${query}%`;
+
+    // Search across all teacher fields
+    const [teachers] = await pool.query(`
+      SELECT 
+        t.teacher_id,
+        t.name,
+        t.subject,
+        t.year,
+        t.stream,
+        t.semester,
+        t.division,
+        t.status,
+        COUNT(DISTINCT tsm.student_id) as student_count
+      FROM teacher_details_db t
+      LEFT JOIN teacher_student_map tsm ON t.teacher_id = tsm.teacher_id
+      WHERE t.teacher_id LIKE ?
+        OR t.name LIKE ?
+        OR t.subject LIKE ?
+        OR t.year LIKE ?
+        OR t.stream LIKE ?
+        OR t.semester LIKE ?
+        OR t.division LIKE ?
+      GROUP BY t.teacher_id, t.subject, t.year, t.stream, t.semester, t.division
+      ORDER BY t.name ASC, t.subject ASC
+    `, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+
+    return res.json({
+      success: true,
+      teachers,
+      count: teachers.length
+    });
+
+  } catch (error) {
+    console.error('Error searching teachers:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Add a new teacher with validation
+ * POST /api/admin/teachers/add
+ */
+export async function addTeacher(req, res, next) {
+  try {
+    const { teacherId, name, subject, year, stream, semester, division, status } = req.body;
+
+    // Validate required fields
+    if (!teacherId || !name || !subject || !year || !stream) {
+      return res.status(400).json({
+        success: false,
+        message: 'Required fields: teacherId, name, subject, year, stream'
+      });
+    }
+
+    // Validate format
+    const teacherIdRegex = /^[A-Z0-9]+$/;
+    if (!teacherIdRegex.test(teacherId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Teacher ID must contain only uppercase letters and numbers (e.g., TCH001)'
+      });
+    }
+
+    // Validate year format (can be comma-separated now)
+    const validYears = ['FY', 'SY', 'TY'];
+    const yearArray = year.split(',').map(y => y.trim().toUpperCase());
+    const invalidYears = yearArray.filter(y => !validYears.includes(y));
+    if (invalidYears.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be FY, SY, or TY (comma-separated for multiple)'
+      });
+    }
+
+    // Validate stream format (can be comma-separated now)
+    const validStreams = ['BSCIT', 'BSCDS', 'BSC'];
+    const streamArray = stream.split(',').map(s => s.trim().toUpperCase());
+    const invalidStreams = streamArray.filter(s => !validStreams.includes(s));
+    if (invalidStreams.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Stream must be BSCIT, BSCDS, or BSC (comma-separated for multiple)'
+      });
+    }
+
+    // Validate division format (comma-separated letters)
+    if (division && !/^[A-Z](,[A-Z])*$/.test(division)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Division must be comma-separated uppercase letters (e.g., A,B,C)'
+      });
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // Check if teacher already exists (just by teacher_id for clubbed records)
+      const [existing] = await connection.query(
+        `SELECT * FROM teacher_details_db WHERE teacher_id = ?`,
+        [teacherId]
+      );
+
+      if (existing.length > 0) {
+        await connection.rollback();
+        return res.status(409).json({
+          success: false,
+          message: `Teacher ${teacherId} already exists. Click "Edit Teacher" to modify their details instead.`
+        });
+      }
+
+      // Insert new teacher with clubbed (comma-separated) values
+      await connection.query(
+        `INSERT INTO teacher_details_db 
+         (teacher_id, name, subject, year, stream, semester, division, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          teacherId.toUpperCase(),
+          name.trim(),
+          subject.trim(),
+          yearArray.join(', '),
+          streamArray.join(', '),
+          semester || '',
+          division || '',
+          status || 'Active'
+        ]
+      );
+
+      // Backup to teacher_status_backup
+      await connection.query(
+        `INSERT INTO teacher_status_backup 
+         (teacher_id, name, subject, year, stream, semester, division, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          teacherId.toUpperCase(),
+          name.trim(),
+          subject.trim(),
+          yearArray.join(', '),
+          streamArray.join(', '),
+          semester || '',
+          division || '',
+          status || 'Active'
+        ]
+      );
+
+      // Log activity
+      await connection.query(
+        `INSERT INTO activity_logs (actor_role, actor_id, action, details, created_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          'admin',
+          req.session.user?.id || 'system',
+          'ADD_TEACHER',
+          JSON.stringify({ teacherId, name, subject, year: yearArray.join(', '), stream: streamArray.join(', ') })
+        ]
+      );
+
+      await connection.commit();
+
+      // Auto-map students to this teacher based on stream-division-year
+      let mappingResult = null;
+      try {
+        console.log(`🔗 Auto-mapping students to teacher ${teacherId}...`);
+        mappingResult = await autoMapStudentsToTeachers(req.session.user?.id || 'system');
+        console.log(`✅ Mapped ${mappingResult.mapped} student-teacher relationships`);
+      } catch (mappingError) {
+        console.error("⚠️ Auto-mapping error (teacher added but mapping failed):", mappingError.message);
+        // Continue even if auto-mapping fails - teacher was added successfully
+      }
+
+      return res.json({
+        success: true,
+        message: `Teacher added successfully with ${yearArray.length} year(s), ${streamArray.length} stream(s)${mappingResult ? `. Mapped ${mappingResult.mapped} students` : ''}`,
+        teacher: {
+          teacherId: teacherId.toUpperCase(),
+          name: name.trim(),
+          subject: subject.trim(),
+          year: yearArray.join(', '),
+          stream: streamArray.join(', '),
+          semester: semester || '',
+          division: division || '',
+          status: status || 'Active'
+        },
+        mappings: mappingResult
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('Error adding teacher:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Remove a teacher (soft delete) and set status to Inactive
+ * DELETE /api/admin/teachers/remove
+ */
+export async function removeTeacher(req, res, next) {
+  try {
+    const { teacherId, subject, year, stream, semester } = req.body;
+
+    if (!teacherId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Teacher ID is required'
+      });
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // Build WHERE clause based on provided parameters
+      let whereConditions = ['teacher_id = ?'];
+      let params = [teacherId];
+
+      if (subject) {
+        whereConditions.push('subject = ?');
+        params.push(subject);
+      }
+      if (year) {
+        whereConditions.push('year = ?');
+        params.push(year);
+      }
+      if (stream) {
+        whereConditions.push('stream = ?');
+        params.push(stream);
+      }
+      if (semester) {
+        whereConditions.push('semester = ?');
+        params.push(semester);
+      }
+
+      const whereClause = whereConditions.join(' AND ');
+
+      // Get teachers to be removed
+      const [teachers] = await connection.query(
+        `SELECT * FROM teacher_details_db WHERE ${whereClause}`,
+        params
+      );
+
+      if (teachers.length === 0) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'No matching teachers found'
+        });
+      }
+
+      // Set status to Inactive instead of deleting
+      await connection.query(
+        `UPDATE teacher_details_db SET status = 'Inactive' WHERE ${whereClause}`,
+        params
+      );
+
+      // Backup removed teachers
+      for (const teacher of teachers) {
+        await connection.query(
+          `UPDATE teacher_status_backup 
+           SET status = 'Inactive', removed_at = NOW(), removed_by = ?
+           WHERE teacher_id = ? AND subject = ? AND year = ? AND stream = ?`,
+          [
+            req.session.user?.id || 'system',
+            teacher.teacher_id,
+            teacher.subject,
+            teacher.year,
+            teacher.stream
+          ]
+        );
+      }
+
+      // Log activity
+      await connection.query(
+        `INSERT INTO activity_logs (actor_role, actor_id, action, details, created_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          'admin',
+          req.session.user?.id || 'system',
+          'REMOVE_TEACHER',
+          JSON.stringify({ teacherId, count: teachers.length })
+        ]
+      );
+
+      await connection.commit();
+
+      // Auto-map students after teacher removal to update mappings
+      let mappingResult = null;
+      try {
+        console.log(`🔗 Auto-mapping students after teacher removal...`);
+        mappingResult = await autoMapStudentsToTeachers(req.session.user?.id || 'system');
+        console.log(`✅ Mapped ${mappingResult.mapped} student-teacher relationships`);
+      } catch (mappingError) {
+        console.error("⚠️ Auto-mapping error (teacher removed but mapping failed):", mappingError.message);
+        // Continue even if auto-mapping fails - teacher was removed successfully
+      }
+
+      return res.json({
+        success: true,
+        message: `${teachers.length} teacher(s) removed and set to Inactive${mappingResult ? `. Updated ${mappingResult.mapped} student mappings` : ''}`,
+        removedCount: teachers.length,
+        teachers: teachers.map(t => ({
+          teacherId: t.teacher_id,
+          name: t.name,
+          subject: t.subject
+        })),
+        mappings: mappingResult
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('Error removing teacher:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Configure teacher status (Active/Inactive)
+ * PUT /api/admin/teachers/status
+ */
+export async function configureTeacherStatus(req, res, next) {
+  try {
+    const { teacherId, subject, year, stream, semester, status } = req.body;
+
+    if (!teacherId || !status) {
+      return res.status(400).json({
+        success: false,
+        message: 'Teacher ID and status are required'
+      });
+    }
+
+    if (!['Active', 'Inactive'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status must be either Active or Inactive'
+      });
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // Build WHERE clause
+      let whereConditions = ['teacher_id = ?'];
+      let whereParams = [teacherId];
+
+      if (subject) {
+        whereConditions.push('subject = ?');
+        whereParams.push(subject);
+      }
+      if (year) {
+        whereConditions.push('year = ?');
+        whereParams.push(year);
+      }
+      if (stream) {
+        whereConditions.push('stream = ?');
+        whereParams.push(stream);
+      }
+      if (semester) {
+        whereConditions.push('semester = ?');
+        whereParams.push(semester);
+      }
+
+      const whereClause = whereConditions.join(' AND ');
+      const params = [status, ...whereParams];
+
+      // Update status
+      const [result] = await connection.query(
+        `UPDATE teacher_details_db SET status = ? WHERE ${whereClause}`,
+        params
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'No matching teachers found'
+        });
+      }
+
+      // Update backup table
+      const backupParams = [status, teacherId];
+      let backupWhere = 'teacher_id = ?';
+
+      if (subject) {
+        backupWhere += ' AND subject = ?';
+        backupParams.push(subject);
+      }
+      if (year) {
+        backupWhere += ' AND year = ?';
+        backupParams.push(year);
+      }
+      if (stream) {
+        backupWhere += ' AND stream = ?';
+        backupParams.push(stream);
+      }
+
+      await connection.query(
+        `UPDATE teacher_status_backup SET status = ? WHERE ${backupWhere}`,
+        backupParams
+      );
+
+      // Log activity
+      await connection.query(
+        `INSERT INTO activity_logs (actor_role, actor_id, action, details, created_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          'admin',
+          req.session.user?.id || 'system',
+          'CONFIGURE_TEACHER_STATUS',
+          JSON.stringify({ teacherId, status, affectedRows: result.affectedRows })
+        ]
+      );
+
+      await connection.commit();
+
+      // Auto-map students after status change to update mappings
+      let mappingResult = null;
+      try {
+        console.log(`🔗 Auto-mapping students after status change...`);
+        mappingResult = await autoMapStudentsToTeachers(req.session.user?.id || 'system');
+        console.log(`✅ Mapped ${mappingResult.mapped} student-teacher relationships`);
+      } catch (mappingError) {
+        console.error("⚠️ Auto-mapping error (status updated but mapping failed):", mappingError.message);
+        // Continue even if auto-mapping fails - status was updated successfully
+      }
+
+      return res.json({
+        success: true,
+        message: `Status updated to ${status} for ${result.affectedRows} teacher(s)${mappingResult ? `. Updated ${mappingResult.mapped} student mappings` : ''}`,
+        affectedRows: result.affectedRows,
+        mappings: mappingResult
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('Error configuring teacher status:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Get all teachers with their status
+ * GET /api/admin/teachers/all
+ */
+export async function getAllTeachersWithStatus(req, res, next) {
+  try {
+    const { status } = req.query;
+
+    let query = `
+      SELECT 
+        t.teacher_id,
+        MAX(t.name) as name,
+        MAX(t.subject) as subject,
+        MAX(t.year) as year,
+        MAX(t.stream) as stream,
+        MAX(t.semester) as semester,
+        MAX(t.division) as division,
+        MAX(t.status) as status,
+        COUNT(DISTINCT tsm.student_id) as student_count
+      FROM teacher_details_db t
+      LEFT JOIN teacher_student_map tsm ON t.teacher_id = tsm.teacher_id
+    `;
+
+    const params = [];
+
+    if (status && ['Active', 'Inactive'].includes(status)) {
+      query += ' WHERE t.status = ?';
+      params.push(status);
+    }
+
+    // Group by teacher_id only since we now use clubbed records (comma-separated values)
+    // Using MAX() for other fields to comply with MySQL strict mode
+    query += ' GROUP BY t.teacher_id ORDER BY MAX(t.name) ASC';
+
+    const [teachers] = await pool.query(query, params);
+
+    return res.json({
+      success: true,
+      teachers,
+      count: teachers.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching teachers:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Add multiple teacher records in batch (for multi-select combinations)
+ * POST /api/admin/teachers/add-batch
+ */
+export async function addTeacherBatch(req, res, next) {
+  try {
+    const { teachers } = req.body;
+
+    if (!teachers || !Array.isArray(teachers) || teachers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Teachers array is required'
+      });
+    }
+
+    // Validate each teacher record
+    for (const teacher of teachers) {
+      const { teacherId, name, subject, year, stream } = teacher;
+
+      if (!teacherId || !name || !subject || !year || !stream) {
+        return res.status(400).json({
+          success: false,
+          message: 'Each teacher must have: teacherId, name, subject, year, stream'
+        });
+      }
+
+      // Validate format
+      const teacherIdRegex = /^[A-Z0-9]+$/;
+      if (!teacherIdRegex.test(teacherId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Teacher ID must contain only uppercase letters and numbers (e.g., TCH001)'
+        });
+      }
+
+      // Validate year format
+      const validYears = ['FY', 'SY', 'TY'];
+      if (!validYears.includes(year.toUpperCase())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Year must be FY, SY, or TY'
+        });
+      }
+
+      // Validate stream format
+      const validStreams = ['BSCIT', 'BSCDS', 'BSC'];
+      if (!validStreams.includes(stream.toUpperCase())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Stream must be BSCIT, BSCDS, or BSC'
+        });
+      }
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // Check if teacher ID exists (any record with this teacher_id)
+      const teacherId = teachers[0].teacherId;
+      const [existingTeacher] = await connection.query(
+        `SELECT teacher_id FROM teacher_details_db WHERE teacher_id = ? LIMIT 1`,
+        [teacherId]
+      );
+
+      if (existingTeacher.length > 0) {
+        await connection.rollback();
+        return res.status(409).json({
+          success: false,
+          message: `Teacher ${teacherId} already exists. Click "Edit Teacher" to modify their details instead.`
+        });
+      }
+
+      let insertedCount = 0;
+      let skippedCount = 0;
+
+      for (const teacher of teachers) {
+        const { teacherId, name, subject, year, stream, semester, division, status } = teacher;
+
+        // Check for duplicate
+        const [existing] = await connection.query(
+          `SELECT * FROM teacher_details_db 
+           WHERE teacher_id = ? AND subject = ? AND year = ? AND stream = ? AND semester = ?`,
+          [teacherId, subject, year, stream, semester || '']
+        );
+
+        if (existing.length > 0) {
+          skippedCount++;
+          continue;
+        }
+
+        // Insert new teacher
+        await connection.query(
+          `INSERT INTO teacher_details_db 
+           (teacher_id, name, subject, year, stream, semester, division, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            teacherId.toUpperCase(),
+            name.trim(),
+            subject.trim(),
+            year.toUpperCase(),
+            stream.toUpperCase(),
+            semester || '',
+            division || '',
+            status || 'Active'
+          ]
+        );
+
+        // Backup to teacher_status_backup
+        await connection.query(
+          `INSERT INTO teacher_status_backup 
+           (teacher_id, name, subject, year, stream, semester, division, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            teacherId.toUpperCase(),
+            name.trim(),
+            subject.trim(),
+            year.toUpperCase(),
+            stream.toUpperCase(),
+            semester || '',
+            division || '',
+            status || 'Active'
+          ]
+        );
+
+        insertedCount++;
+      }
+
+      // Log activity
+      await connection.query(
+        `INSERT INTO activity_logs (actor_role, actor_id, action, details, created_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          'admin',
+          req.session.user?.id || 'system',
+          'ADD_TEACHER_BATCH',
+          JSON.stringify({ teacherId: teachers[0].teacherId, name: teachers[0].name, recordCount: insertedCount })
+        ]
+      );
+
+      await connection.commit();
+
+      // Auto-map students to these teachers based on stream-division-year
+      let mappingResult = null;
+      try {
+        console.log(`🔗 Auto-mapping students to ${insertedCount} teacher record(s)...`);
+        mappingResult = await autoMapStudentsToTeachers(req.session.user?.id || 'system');
+        console.log(`✅ Mapped ${mappingResult.mapped} student-teacher relationships`);
+      } catch (mappingError) {
+        console.error("⚠️ Auto-mapping error (teachers added but mapping failed):", mappingError.message);
+        // Continue even if auto-mapping fails - teachers were added successfully
+      }
+
+      return res.json({
+        success: true,
+        message: `Successfully added ${insertedCount} teacher record(s)${skippedCount > 0 ? `, skipped ${skippedCount} duplicate(s)` : ''}${mappingResult ? `. Mapped ${mappingResult.mapped} students` : ''}`,
+        insertedCount,
+        skippedCount,
+        mappings: mappingResult
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('Error adding teachers in batch:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Get teacher records by ID
+ * GET /api/admin/teachers/get/:teacherId
+ */
+export async function getTeacherById(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+
+    if (!teacherId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Teacher ID is required'
+      });
+    }
+
+    const [records] = await pool.query(
+      `SELECT * FROM teacher_details_db WHERE teacher_id = ? ORDER BY subject, year, stream, semester`,
+      [teacherId.toUpperCase()]
+    );
+
+    if (records.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    return res.json({
+      success: true,
+      records,
+      count: records.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching teacher by ID:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Edit/Update a teacher record
+ * PUT /api/admin/teachers/edit
+ */
+export async function editTeacher(req, res, next) {
+  try {
+    const { teacherId, name, subject, year, stream, semester, division } = req.body;
+
+    // Validate required fields
+    if (!teacherId || !name || !subject || !year || !stream) {
+      return res.status(400).json({
+        success: false,
+        message: 'Required fields: teacherId, name, subject, year, stream'
+      });
+    }
+
+    // Validate formats
+    const validYears = ['FY', 'SY', 'TY'];
+    if (!validYears.includes(year.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be FY, SY, or TY'
+      });
+    }
+
+    const validStreams = ['BSCIT', 'BSCDS', 'BSC'];
+    if (!validStreams.includes(stream.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Stream must be BSCIT, BSCDS, or BSC'
+      });
+    }
+
+    if (division && !/^[A-Z](,[A-Z])*$/.test(division)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Division must be comma-separated uppercase letters (e.g., A,B,C)'
+      });
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // Update the first matching record for this teacher (by teacher_id only)
+      const [result] = await connection.query(
+        `UPDATE teacher_details_db 
+         SET name = ?, subject = ?, year = ?, stream = ?, semester = ?, division = ?
+         WHERE teacher_id = ?
+         LIMIT 1`,
+        [
+          name.trim(),
+          subject.trim(),
+          year.toUpperCase(),
+          stream.toUpperCase(),
+          semester || '',
+          division || '',
+          teacherId.toUpperCase()
+        ]
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'Teacher not found'
+        });
+      }
+
+      // Update backup table
+      await connection.query(
+        `UPDATE teacher_status_backup 
+         SET name = ?, subject = ?, year = ?, stream = ?, semester = ?, division = ?
+         WHERE teacher_id = ?
+         LIMIT 1`,
+        [
+          name.trim(),
+          subject.trim(),
+          year.toUpperCase(),
+          stream.toUpperCase(),
+          semester || '',
+          division || '',
+          teacherId.toUpperCase()
+        ]
+      );
+
+      // Log activity
+      await connection.query(
+        `INSERT INTO activity_logs (actor_role, actor_id, action, details, created_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [
+          'admin',
+          req.session.user?.id || 'system',
+          'EDIT_TEACHER',
+          JSON.stringify({ teacherId, name, subject })
+        ]
+      );
+
+      await connection.commit();
+
+      // Auto-map students based on updated teacher assignments
+      let mappingResult = null;
+      try {
+        console.log(`🔗 Auto-mapping students after teacher edit...`);
+        mappingResult = await autoMapStudentsToTeachers(req.session.user?.id || 'system');
+        console.log(`✅ Mapped ${mappingResult.mapped} student-teacher relationships`);
+      } catch (mappingError) {
+        console.error("⚠️ Auto-mapping error (teacher updated but mapping failed):", mappingError.message);
+        // Continue even if auto-mapping fails - teacher was updated successfully
+      }
+
+      return res.json({
+        success: true,
+        message: `Teacher updated successfully${mappingResult ? `. Remapped ${mappingResult.mapped} students` : ''}`,
+        mappings: mappingResult
+      });
+
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+  } catch (error) {
+    console.error('Error updating teacher:', error);
+    return next(error);
+  }
+}
+
+/**
+ * Consolidate duplicate teacher records into clubbed records
+ * POST /api/admin/teachers/consolidate
+ */
+export async function consolidateTeacherRecords(req, res, next) {
+  const connection = await pool.getConnection();
+
+  try {
+    console.log('🔍 Starting teacher record consolidation...');
+
+    await connection.beginTransaction();
+
+    // Get all teachers grouped by teacher_id
+    const [teachers] = await connection.query(`
+      SELECT teacher_id
+      FROM teacher_details_db
+      GROUP BY teacher_id
+      HAVING COUNT(*) > 1
+    `);
+
+    if (teachers.length === 0) {
+      await connection.commit();
+      return res.json({
+        success: true,
+        message: 'No duplicate records found. All teachers already have single clubbed records.',
+        consolidatedCount: 0
+      });
+    }
+
+    let consolidatedCount = 0;
+    const details = [];
+
+    for (const teacher of teachers) {
+      const teacherId = teacher.teacher_id;
+
+      // Get all records for this teacher
+      const [records] = await connection.query(`
+        SELECT * FROM teacher_details_db
+        WHERE teacher_id = ?
+        ORDER BY subject, year, stream, semester
+      `, [teacherId]);
+
+      if (records.length <= 1) continue;
+
+      // Extract unique values for each field
+      const subjects = [...new Set(records.map(r => r.subject).filter(Boolean))];
+      const years = [...new Set(records.map(r => r.year).filter(Boolean))];
+      const streams = [...new Set(records.map(r => r.stream).filter(Boolean))];
+      const semesters = [...new Set(records.map(r => r.semester).filter(Boolean))];
+
+      // Use first record as base
+      const baseRecord = records[0];
+
+      // Create clubbed record
+      const clubbedRecord = {
+        teacher_id: baseRecord.teacher_id,
+        name: baseRecord.name,
+        subject: subjects.join(', '),
+        year: years.join(', '),
+        stream: streams.join(', '),
+        semester: semesters.join(', '),
+        division: baseRecord.division,
+        status: baseRecord.status || 'Active'
+      };
+
+      // Delete all existing records for this teacher
+      await connection.query(`
+        DELETE FROM teacher_details_db WHERE teacher_id = ?
+      `, [teacherId]);
+
+      // Insert the new clubbed record
+      await connection.query(`
+        INSERT INTO teacher_details_db 
+        (teacher_id, name, subject, year, stream, semester, division, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        clubbedRecord.teacher_id,
+        clubbedRecord.name,
+        clubbedRecord.subject,
+        clubbedRecord.year,
+        clubbedRecord.stream,
+        clubbedRecord.semester,
+        clubbedRecord.division,
+        clubbedRecord.status
+      ]);
+
+      // Also update backup table
+      await connection.query(`
+        DELETE FROM teacher_status_backup WHERE teacher_id = ?
+      `, [teacherId]);
+
+      await connection.query(`
+        INSERT INTO teacher_status_backup 
+        (teacher_id, name, subject, year, stream, semester, division, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        clubbedRecord.teacher_id,
+        clubbedRecord.name,
+        clubbedRecord.subject,
+        clubbedRecord.year,
+        clubbedRecord.stream,
+        clubbedRecord.semester,
+        clubbedRecord.division,
+        clubbedRecord.status
+      ]);
+
+      consolidatedCount++;
+      details.push({
+        teacherId: clubbedRecord.teacher_id,
+        name: clubbedRecord.name,
+        oldRecordCount: records.length,
+        newSubject: clubbedRecord.subject,
+        newYear: clubbedRecord.year,
+        newStream: clubbedRecord.stream
+      });
+    }
+
+    await connection.commit();
+
+    // Auto-map students based on consolidated teacher records
+    let mappingResult = null;
+    try {
+      console.log(`🔗 Auto-mapping students after consolidation...`);
+      mappingResult = await autoMapStudentsToTeachers(req.session.user?.id || 'system');
+      console.log(`✅ Mapped ${mappingResult.mapped} student-teacher relationships`);
+    } catch (mappingError) {
+      console.error("⚠️ Auto-mapping error (consolidation complete but mapping failed):", mappingError.message);
+      // Continue even if auto-mapping fails - consolidation was successful
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully consolidated ${consolidatedCount} teacher(s) into clubbed records${mappingResult ? `. Mapped ${mappingResult.mapped} students` : ''}`,
+      consolidatedCount,
+      details,
+      mappings: mappingResult
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('❌ Error consolidating records:', error);
+    return next(error);
+  } finally {
+    connection.release();
   }
 }

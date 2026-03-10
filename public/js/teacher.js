@@ -123,6 +123,82 @@ function handleError(error, fallback = "Something went wrong") {
   });
 }
 
+function freezeDashboard() {
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'inactive-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+  `;
+
+  const warningBox = document.createElement('div');
+  warningBox.style.cssText = `
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  `;
+
+  warningBox.innerHTML = `
+    <div style="font-size: 3rem; color: #dc3545; margin-bottom: 1rem;">⚠️</div>
+    <h2 style="color: #dc3545; margin-bottom: 1rem;">Account Inactive</h2>
+    <p style="color: #666; font-size: 1.1rem; margin-bottom: 1.5rem;">
+      Your account has been deactivated by the administrator. 
+      You cannot start sessions or perform any actions.
+    </p>
+    <p style="color: #666;">
+      Please contact the administrator for assistance.
+    </p>
+  `;
+
+  overlay.appendChild(warningBox);
+  document.body.appendChild(overlay);
+
+  // Disable all buttons
+  const buttons = document.querySelectorAll('button');
+  buttons.forEach(btn => {
+    if (btn.getAttribute('data-signout') !== null) {
+      return; // Keep sign out button enabled
+    }
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+  });
+
+  // Disable all inputs
+  const inputs = document.querySelectorAll('input, select, textarea');
+  inputs.forEach(input => {
+    input.disabled = true;
+    input.style.opacity = '0.5';
+  });
+
+  // Disable all forms
+  const forms = document.querySelectorAll('form');
+  forms.forEach(form => {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showToast({
+        title: "Action Blocked",
+        message: "Your account is inactive. Contact the administrator.",
+        type: "error",
+      });
+    }, true);
+  });
+}
+
 async function loadDashboard() {
   try {
     const data = await apiFetch("/api/teacher/dashboard");
@@ -132,6 +208,18 @@ async function loadDashboard() {
     availableYears = data.years || [];
     availableSemesters = data.semesters || [];
     availableSubjects = data.subjects || [];
+
+    // Check if teacher is inactive
+    if (data.isInactive === true || data.teacherStatus === 'Inactive') {
+      freezeDashboard();
+      showToast({
+        title: "Account Inactive",
+        message: "Your account has been deactivated. You cannot start sessions or perform any actions. Please contact the administrator.",
+        type: "error",
+        duration: 0 // Don't auto-dismiss
+      });
+      return; // Don't load the rest of the dashboard
+    }
 
     // Update teacher name in header
     const teacherNameEl = document.querySelector("[data-teacher-name]");
