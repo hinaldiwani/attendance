@@ -12,7 +12,7 @@ async function createTeacherDetailsTable() {
 
     try {
         console.log('Connected to MySQL database');
-        
+
         // Create teacher_details_db table
         const createTableQuery = `
             CREATE TABLE IF NOT EXISTS teacher_details_db (
@@ -39,7 +39,7 @@ async function createTeacherDetailsTable() {
             "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = ? AND table_name = 'teacher_details_db'",
             [process.env.DB_NAME || 'acadmark_attendance']
         );
-        
+
         if (tables[0].count > 0) {
             console.log('✓ Verified: teacher_details_db table exists');
         }

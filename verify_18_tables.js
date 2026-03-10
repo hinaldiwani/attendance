@@ -36,48 +36,48 @@ async function verifyTables() {
 
     try {
         console.log('🔍 Verifying database tables...\n');
-        
+
         // Get all tables from database
         const [tables] = await connection.query('SHOW TABLES');
         const actualTables = tables.map(row => Object.values(row)[0]).sort();
-        
+
         console.log(`Database: ${process.env.DB_NAME || 'acadmark_attendance'}`);
         console.log(`Tables found: ${actualTables.length}/18\n`);
-        
+
         // Check for missing tables
         const missingTables = EXPECTED_TABLES.filter(t => !actualTables.includes(t));
         const extraTables = actualTables.filter(t => !EXPECTED_TABLES.includes(t));
-        
+
         if (missingTables.length > 0) {
             console.log('❌ MISSING TABLES:');
             missingTables.forEach(table => console.log(`   - ${table}`));
             console.log();
         }
-        
+
         if (extraTables.length > 0) {
             console.log('⚠️  EXTRA TABLES (not in expected list):');
             extraTables.forEach(table => console.log(`   - ${table}`));
             console.log();
         }
-        
+
         if (missingTables.length === 0 && extraTables.length === 0) {
             console.log('✅ All 18 tables are present!\n');
         }
-        
+
         // Display all tables
         console.log('📋 Complete table list:');
         actualTables.forEach((table, index) => {
             const icon = EXPECTED_TABLES.includes(table) ? '✓' : '?';
             console.log(`   ${icon} ${index + 1}. ${table}`);
         });
-        
+
         // Verify teacher_details_db schema (semester should be NOT NULL)
         console.log('\n🔍 Checking teacher_details_db schema...');
         const [createTable] = await connection.query(
             "SHOW CREATE TABLE teacher_details_db"
         );
         const createStatement = createTable[0]['Create Table'];
-        
+
         if (createStatement.includes('`semester` varchar(20) NOT NULL')) {
             console.log('✅ semester column is NOT NULL (correct)');
         } else if (createStatement.includes('`semester` varchar(20) DEFAULT NULL')) {
@@ -85,7 +85,7 @@ async function verifyTables() {
             console.log('\nTo fix, run:');
             console.log('ALTER TABLE teacher_details_db MODIFY semester VARCHAR(20) NOT NULL;');
         }
-        
+
     } catch (error) {
         console.error('❌ Error:', error.message);
         throw error;
