@@ -17,8 +17,9 @@ const pool = mysql.createPool({
   // Enable multi-statement and increase packet size for bulk imports
   multipleStatements: false, // Keep false for security
   connectTimeout: 60000, // 60 seconds
-  acquireTimeout: 60000, // 60 seconds
-  timeout: 60000, // 60 seconds
+  // Removed invalid options that were causing warnings:
+  // - acquireTimeout (not a valid mysql2 option)
+  // - timeout (not a valid mysql2 option)
 });
 
 export default pool;

@@ -49,7 +49,7 @@ export async function login(req, res, next) {
 
     if (role === "teacher") {
       const [rows] = await pool.query(
-        "SELECT teacher_id, name, stream FROM teacher_details_db WHERE teacher_id = ? LIMIT 1",
+        "SELECT teacher_id, name, stream, status FROM teacher_details_db WHERE teacher_id = ? LIMIT 1",
         [identifier]
       );
 
@@ -57,10 +57,19 @@ export async function login(req, res, next) {
         return res.status(401).json({ message: "Teacher ID not found" });
       }
 
+      // Check if teacher is inactive
+      if (rows[0].status === 'Inactive') {
+        return res.status(403).json({
+          message: "Your account has been deactivated. Please contact the administrator for assistance.",
+          isInactive: true
+        });
+      }
+
       req.session.user = {
         role: "teacher",
         id: rows[0].teacher_id,
         name: rows[0].name,
+        status: rows[0].status || 'Active',
       };
       return res.json({ message: "Login successful", redirectTo: "/teacher" });
     }
