@@ -2482,10 +2482,13 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      bulkStudentStreamSelect.innerHTML = streams
-        .map((stream) => `<option value="${stream}">${stream}</option>`)
-        .join("");
+      bulkStudentStreamSelect.innerHTML =
+        '<option value="ALL">All Streams</option>' +
+        streams
+          .map((stream) => `<option value="${stream}">${stream}</option>`)
+          .join("");
       bulkStudentStreamSelect.disabled = false;
+      bulkStudentStreamSelect.value = "ALL";
 
       await populateBulkDivisionOptions(year, bulkStudentStreamSelect.value);
     } catch (error) {
@@ -2507,21 +2510,20 @@ window.addEventListener("DOMContentLoaded", () => {
     bulkStudentDivisionSelect.disabled = true;
 
     try {
-      const data = await apiFetch(
-        `/api/admin/streams-divisions?year=${encodeURIComponent(year)}&stream=${encodeURIComponent(stream)}`,
-      );
+      const query =
+        stream === "ALL"
+          ? `/api/admin/streams-divisions?year=${encodeURIComponent(year)}`
+          : `/api/admin/streams-divisions?year=${encodeURIComponent(year)}&stream=${encodeURIComponent(stream)}`;
+      const data = await apiFetch(query);
       const divisions = Array.isArray(data.divisions) ? data.divisions : [];
 
-      if (!divisions.length) {
-        bulkStudentDivisionSelect.innerHTML =
-          '<option value="">No divisions found for selection</option>';
-        return;
-      }
-
-      bulkStudentDivisionSelect.innerHTML = divisions
-        .map((division) => `<option value="${division}">${division}</option>`)
-        .join("");
+      bulkStudentDivisionSelect.innerHTML =
+        '<option value="ALL">All Divisions</option>' +
+        divisions
+          .map((division) => `<option value="${division}">${division}</option>`)
+          .join("");
       bulkStudentDivisionSelect.disabled = false;
+      bulkStudentDivisionSelect.value = "ALL";
     } catch (error) {
       bulkStudentDivisionSelect.innerHTML =
         '<option value="">Unable to load divisions</option>';
@@ -2729,6 +2731,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
     studentsInfoBody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
 
+    if (!showExtras) {
+      if (subjectsTeachersContainer) {
+        subjectsTeachersContainer.style.display = "none";
+      }
+      if (studentCountDisplay) {
+        studentCountDisplay.style.display = "none";
+      }
+    }
+
     try {
       const params = new URLSearchParams();
       if (year) params.set("year", year);
@@ -2889,7 +2900,7 @@ window.addEventListener("DOMContentLoaded", () => {
         type: "success",
       });
 
-      await loadStudentsInfo();
+      await loadStudentsInfo({ showExtras: false });
       loadStats().catch(() => { });
     } catch (error) {
       showToast({
@@ -3040,7 +3051,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       await loadStudentsForEditList();
       await loadStudentForEdit(selectedStudentForEdit);
-      await loadStudentsInfo().catch(() => { });
+      await loadStudentsInfo({ showExtras: false }).catch(() => { });
       loadStats().catch(() => { });
     } catch (error) {
       showToast({
@@ -3111,7 +3122,7 @@ window.addEventListener("DOMContentLoaded", () => {
       });
 
       showStudentsListTab();
-      await loadStudentsInfo().catch(() => { });
+      await loadStudentsInfo({ showExtras: false }).catch(() => { });
       loadStats().catch(() => { });
     } catch (error) {
       showToast({

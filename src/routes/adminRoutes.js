@@ -52,13 +52,6 @@ import {
   searchTeacher,
   getStudentSessionAttendance,
   changeAdminPassword,
-  removeTeacher,
-  configureTeacherStatus,
-  getAllTeachersWithStatus,
-  addTeacherBatch,
-  getTeacherById,
-  editTeacher,
-  consolidateTeacherRecords,
 } from "../controllers/adminController.js";
 import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 import notificationService from "../services/notificationService.js";
@@ -149,14 +142,6 @@ router.get("/student/:studentId/sessions", getStudentSessionAttendance);
 
 // Teacher management routes
 router.get("/teachers/search/:query", searchTeacher);
-router.get("/teachers/all-with-status", getAllTeachersWithStatus);
-router.get("/teachers/get/:teacherId", getTeacherById);
-router.post("/teachers/add", addTeacher);
-router.post("/teachers/add-batch", addTeacherBatch);
-router.post("/teachers/consolidate", consolidateTeacherRecords);
-router.put("/teachers/edit", editTeacher);
-router.delete("/teachers/remove", removeTeacher);
-router.put("/teachers/status", configureTeacherStatus);
 
 // Password change route
 router.post("/change-password", changeAdminPassword);

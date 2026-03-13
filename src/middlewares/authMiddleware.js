@@ -1,7 +1,17 @@
 import pool from "../../config/db.js";
 
+function shouldRedirectToLogin(req) {
+  const fetchDest = req.get("sec-fetch-dest") || "";
+  const acceptsHtml = req.accepts(["html", "json"]) === "html";
+  const isPageRequest = fetchDest === "document";
+  return (req.method === "GET" || req.method === "HEAD") && (acceptsHtml || isPageRequest);
+}
+
 export function requireAuth(req, res, next) {
   if (!req.session?.user) {
+    if (shouldRedirectToLogin(req)) {
+      return res.redirect("/");
+    }
     return res.status(401).json({ message: "Authentication required" });
   }
   return next();
