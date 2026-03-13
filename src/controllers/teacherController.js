@@ -10,12 +10,109 @@ import {
   logAttendanceToAggregate,
 } from "../services/attendanceService.js";
 
+let attendanceBackupSchemaChecked = false;
+
+async function ensureAttendanceBackupSchema() {
+  if (attendanceBackupSchemaChecked) return;
+
+  const requiredColumns = {
+    subject: "ADD COLUMN subject VARCHAR(100) DEFAULT NULL AFTER teacher_id",
+    year: "ADD COLUMN year VARCHAR(10) DEFAULT NULL AFTER subject",
+    semester: "ADD COLUMN semester VARCHAR(20) DEFAULT NULL AFTER year",
+    stream: "ADD COLUMN stream VARCHAR(100) DEFAULT NULL AFTER semester",
+    division: "ADD COLUMN division VARCHAR(100) DEFAULT NULL AFTER stream",
+    records:
+      "ADD COLUMN records LONGTEXT DEFAULT NULL COMMENT 'JSON array of student records' AFTER started_at",
+    file_content:
+      "ADD COLUMN file_content LONGTEXT DEFAULT NULL COMMENT 'Base64-encoded CSV' AFTER records",
+    saved_at: "ADD COLUMN saved_at DATETIME DEFAULT NULL AFTER file_content",
+  };
+
+  const [columns] = await pool.query(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'attendance_backup'`,
+  );
+
+  const existing = new Set(columns.map((row) => row.COLUMN_NAME));
+  for (const [column, alterDef] of Object.entries(requiredColumns)) {
+    if (!existing.has(column)) {
+      await pool.query(`ALTER TABLE attendance_backup ${alterDef}`);
+      console.log(
+        `🔧 Auto-migration: Added missing column attendance_backup.${column}`,
+      );
+    }
+  }
+
+  attendanceBackupSchemaChecked = true;
+}
+
+async function insertAttendanceBackupRecord(values) {
+  const sql = `INSERT INTO attendance_backup
+    (filename, session_id, teacher_id, subject, year, semester, stream, division, started_at, records, file_content, saved_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+
+  try {
+    await ensureAttendanceBackupSchema();
+    await pool.query(sql, values);
+  } catch (error) {
+    if (error?.code === "ER_BAD_FIELD_ERROR") {
+      // Retry once after forcing schema check in case DB was outdated.
+      attendanceBackupSchemaChecked = false;
+      await ensureAttendanceBackupSchema();
+      await pool.query(sql, values);
+      return;
+    }
+    throw error;
+  }
+}
+
 function buildActivityPayload(action, teacherId, meta = {}) {
   return pool.query(
     `INSERT INTO activity_logs (actor_role, actor_id, action, details, created_at) 
      VALUES ('teacher', ?, ?, ?, NOW())`,
     [teacherId, action, JSON.stringify(meta)],
   );
+}
+
+export async function getTeacherAccountStatus(req, res, next) {
+  try {
+    const teacherId = req.session.user.id;
+
+    const [rows] = await pool.query(
+      `SELECT
+         teacher_id,
+         MAX(name) AS name,
+         CASE
+           WHEN SUM(CASE WHEN UPPER(COALESCE(status, 'Active')) = 'INACTIVE' THEN 1 ELSE 0 END) > 0
+             THEN 'Inactive'
+           ELSE 'Active'
+         END AS teaching_status
+       FROM teacher_details_db
+       WHERE teacher_id = ?
+       GROUP BY teacher_id`,
+      [teacherId],
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    const teacher = rows[0];
+    const isActive = String(teacher.teaching_status).toLowerCase() === "active";
+
+    return res.json({
+      teacherId: teacher.teacher_id,
+      teacherName: teacher.name,
+      status: isActive ? "Active" : "Inactive",
+      message: isActive
+        ? "Teacher account is active"
+        : "Your account has been marked Inactive by admin. Dashboard actions are restricted.",
+    });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 export async function teacherDashboard(req, res, next) {
@@ -76,6 +173,36 @@ export async function teacherDashboard(req, res, next) {
       ),
     ].sort();
 
+    // Subject-wise class mapping for "My Subjects" table (Subject, Year, Stream)
+    const subjectMappings = teacherAssignments
+      .filter((a) => a.subject && String(a.subject).trim().length > 0)
+      .map((a) => ({
+        subject: String(a.subject || "").trim(),
+        year: a.year || null,
+        stream: a.stream || null,
+      }))
+      .filter(
+        (item, index, arr) =>
+          index ===
+          arr.findIndex(
+            (candidate) =>
+              candidate.subject === item.subject &&
+              candidate.year === item.year &&
+              candidate.stream === item.stream,
+          ),
+      )
+      .sort((left, right) => {
+        const bySubject = left.subject.localeCompare(right.subject);
+        if (bySubject !== 0) return bySubject;
+        const byYear = String(left.year || "").localeCompare(
+          String(right.year || ""),
+        );
+        if (byYear !== 0) return byYear;
+        return String(left.stream || "").localeCompare(
+          String(right.stream || ""),
+        );
+      });
+
     return res.json({
       ...stats,
       teacherInfo: {
@@ -89,6 +216,7 @@ export async function teacherDashboard(req, res, next) {
       semesters: uniqueSemesters,
       divisions: uniqueDivisions,
       subjects: uniqueSubjects,
+      subjectMappings,
     });
   } catch (error) {
     return next(error);
@@ -101,6 +229,7 @@ export async function getStreamsAndDivisions(req, res, next) {
     const [streamsList] = await pool.query(
       `SELECT DISTINCT stream FROM student_details_db 
        WHERE stream IS NOT NULL AND stream != ''
+       AND UPPER(COALESCE(status, 'Active')) = 'ACTIVE'
        ORDER BY 
          CASE 
            WHEN stream = 'BSCIT' THEN 1
@@ -113,6 +242,7 @@ export async function getStreamsAndDivisions(req, res, next) {
     const [divisionsList] = await pool.query(
       `SELECT DISTINCT division FROM student_details_db 
        WHERE division IS NOT NULL AND division != ''
+       AND UPPER(COALESCE(status, 'Active')) = 'ACTIVE'
        ORDER BY division`,
     );
 
@@ -263,16 +393,24 @@ export async function endAttendance(req, res, next) {
       formatted,
     );
 
-    await logAttendanceToAggregate(formatted, {
-      sessionId,
-      teacherId,
-      subject,
-      year,
-      semester,
-      stream,
-      division,
-      sessionDate: new Date(),
-    });
+    // Aggregate/stat sync should never block attendance save.
+    try {
+      await logAttendanceToAggregate(formatted, {
+        sessionId,
+        teacherId,
+        subject,
+        year,
+        semester,
+        stream,
+        division,
+        sessionDate: new Date(),
+      });
+    } catch (aggregateError) {
+      console.warn(
+        "⚠️ Aggregation skipped due to schema mismatch:",
+        aggregateError?.message || aggregateError,
+      );
+    }
 
     await buildActivityPayload("END_ATTENDANCE", teacherId, {
       sessionId,
@@ -372,25 +510,20 @@ export async function endAttendance(req, res, next) {
     const csvContent = csvRows.join("\n");
     const fileContent = Buffer.from(csvContent).toString("base64");
 
-    // Save to database with file content
-    await pool.query(
-      `INSERT INTO attendance_backup 
-        (filename, session_id, teacher_id, subject, year, semester, stream, division, started_at, records, file_content, saved_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        filename,
-        sessionId,
-        teacherId,
-        subject,
-        year,
-        semester,
-        stream,
-        division,
-        startedAt,
-        JSON.stringify(studentRecords),
-        fileContent,
-      ],
-    );
+    // Save to database with file content (self-heals schema if DB is outdated)
+    await insertAttendanceBackupRecord([
+      filename,
+      sessionId,
+      teacherId,
+      subject,
+      year,
+      semester,
+      stream,
+      division,
+      startedAt,
+      JSON.stringify(studentRecords),
+      fileContent,
+    ]);
 
     // Send real-time notification
     notificationService.notifyAttendanceMarked({
@@ -543,24 +676,19 @@ export async function saveAttendanceBackup(req, res, next) {
       return res.status(400).json({ message: "Filename is required" });
     }
 
-    await pool.query(
-      `INSERT INTO attendance_backup 
-        (filename, session_id, teacher_id, subject, year, semester, stream, division, started_at, records, file_content, saved_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        filename,
-        sessionId || null,
-        teacherId,
-        subject || null,
-        year || null,
-        semester || null,
-        stream || null,
-        division || null,
-        startedAt ? new Date(startedAt) : null,
-        JSON.stringify(attendance || []),
-        fileContent || null,
-      ],
-    );
+    await insertAttendanceBackupRecord([
+      filename,
+      sessionId || null,
+      teacherId,
+      subject || null,
+      year || null,
+      semester || null,
+      stream || null,
+      division || null,
+      startedAt ? new Date(startedAt) : null,
+      JSON.stringify(attendance || []),
+      fileContent || null,
+    ]);
 
     // log backup action
     await buildActivityPayload("BACKUP_ATTENDANCE", teacherId, {
@@ -1542,6 +1670,7 @@ export async function teacherSearchStudent(req, res, next) {
       LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
       WHERE s.division = ?
         AND tsm.teacher_id = ?
+        AND UPPER(COALESCE(s.status, 'Active')) = 'ACTIVE'
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
@@ -1563,6 +1692,7 @@ export async function teacherSearchStudent(req, res, next) {
       LEFT JOIN attendance_sessions ases ON ar.session_id = ases.session_id
       WHERE s.roll_no = ?
         AND tsm.teacher_id = ?
+        AND UPPER(COALESCE(s.status, 'Active')) = 'ACTIVE'
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
@@ -1589,6 +1719,7 @@ export async function teacherSearchStudent(req, res, next) {
         OR s.stream LIKE ?
         OR s.division LIKE ?)
         AND tsm.teacher_id = ?
+        AND UPPER(COALESCE(s.status, 'Active')) = 'ACTIVE'
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
@@ -1634,7 +1765,12 @@ export async function getTeacherStudentSessionAttendance(req, res, next) {
 
     // Verify student is assigned to this teacher
     const [mapping] = await pool.query(
-      `SELECT * FROM teacher_student_map WHERE teacher_id = ? AND student_id = ?`,
+      `SELECT tsm.*
+       FROM teacher_student_map tsm
+       INNER JOIN student_details_db s ON s.student_id = tsm.student_id
+       WHERE tsm.teacher_id = ?
+         AND tsm.student_id = ?
+         AND UPPER(COALESCE(s.status, 'Active')) = 'ACTIVE'`,
       [teacherId, studentId]
     );
 
@@ -1664,6 +1800,7 @@ export async function getTeacherStudentSessionAttendance(req, res, next) {
       LEFT JOIN attendance_records ar ON s.student_id = ar.student_id AND ar.session_id = ases.session_id
       LEFT JOIN teacher_details_db t ON ases.teacher_id = t.teacher_id AND ases.subject = t.subject
       WHERE s.student_id = ?
+        AND UPPER(COALESCE(s.status, 'Active')) = 'ACTIVE'
         AND ases.year = s.year
         AND ases.stream = s.stream
         AND FIND_IN_SET(s.division, ases.division) > 0

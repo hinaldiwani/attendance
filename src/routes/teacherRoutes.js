@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
+import {
+  requireAuth,
+  requireRole,
+  requireActiveTeacher,
+} from "../middlewares/authMiddleware.js";
 import notificationService from "../services/notificationService.js";
 import {
   teacherDashboard,
@@ -27,6 +31,7 @@ import {
   downloadDefaulterHistoryEntry,
   teacherSearchStudent,
   getTeacherStudentSessionAttendance,
+  getTeacherAccountStatus,
 } from "../controllers/teacherController.js";
 import {
   deleteAttendanceHistory,
@@ -36,6 +41,12 @@ import {
 const router = Router();
 
 router.use(requireAuth, requireRole("teacher"));
+
+// Keep account status endpoint accessible even for inactive teachers
+router.get("/status", getTeacherAccountStatus);
+
+// All other teacher actions require active status
+router.use(requireActiveTeacher);
 
 router.get("/dashboard", teacherDashboard);
 router.get("/students", mappedStudents);

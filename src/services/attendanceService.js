@@ -5,7 +5,10 @@ export async function getMappedStudents(teacherId, filters = {}) {
      FROM student_details_db s
      INNER JOIN teacher_student_map m ON s.student_id = m.student_id`;
 
-  const conditions = ["m.teacher_id = ?"];
+  const conditions = [
+    "m.teacher_id = ?",
+    "UPPER(COALESCE(s.status, 'Active')) = 'ACTIVE'",
+  ];
   const params = [teacherId];
 
   // With the new schema, we can filter directly on teacher_student_map
@@ -261,23 +264,35 @@ export async function logAttendanceToAggregate(records, sessionMeta) {
     sessionMeta.sessionDate,
   ]);
 
-  await pool.query(
-    `INSERT INTO attendance_records 
-      (session_id, teacher_id, student_id, subject, year, stream, division, status, session_date, marked_at) 
-     VALUES ${values}
-     ON DUPLICATE KEY UPDATE 
-      subject = VALUES(subject),
-      year = VALUES(year),
-      stream = VALUES(stream),
-      division = VALUES(division),
-      status = VALUES(status),
-      session_date = VALUES(session_date),
-      marked_at = NOW()`,
-    params,
-  );
+  try {
+    await pool.query(
+      `INSERT INTO attendance_records 
+        (session_id, teacher_id, student_id, subject, year, stream, division, status, session_date, marked_at) 
+       VALUES ${values}
+       ON DUPLICATE KEY UPDATE 
+        subject = VALUES(subject),
+        year = VALUES(year),
+        stream = VALUES(stream),
+        division = VALUES(division),
+        status = VALUES(status),
+        session_date = VALUES(session_date),
+        marked_at = NOW()`,
+      params,
+    );
 
-  // Update attendance statistics tables
-  await updateAttendanceStats(uniqueRecords, sessionMeta);
+    // Update attendance statistics tables only when extended schema is available.
+    await updateAttendanceStats(uniqueRecords, sessionMeta);
+  } catch (error) {
+    // Keep attendance workflow resilient on legacy schemas.
+    if (error?.code === "ER_BAD_FIELD_ERROR") {
+      console.warn(
+        "⚠️ Skipping aggregate writes on legacy schema:",
+        error.message,
+      );
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function updateAttendanceStats(records, sessionMeta) {

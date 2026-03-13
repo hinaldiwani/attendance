@@ -49,6 +49,15 @@ export async function apiFetch(url, options = {}) {
   const isJson = contentType.includes("application/json");
   const payload = isJson ? await response.json() : await response.text();
 
+  // Session expired / unauthenticated: redirect to login immediately.
+  if (response.status === 401) {
+    const currentPath = window.location.pathname || "";
+    if (currentPath !== "/") {
+      window.location.href = "/";
+    }
+    throw new Error("Session expired. Please sign in again.");
+  }
+
   if (!response.ok) {
     throw new Error(payload.message || payload || "Request failed");
   }

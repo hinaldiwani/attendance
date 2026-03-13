@@ -89,8 +89,8 @@ export async function confirmImport(req, res, next) {
     const { mappings = [], clearExisting = false } = req.body;
 
     const results = {
-      students: { inserted: 0 },
-      teachers: { inserted: 0 },
+      students: { total: 0, inserted: 0, skipped: 0 },
+      teachers: { total: 0, inserted: 0, skipped: 0 },
       mappings: { inserted: 0 },
       cleared: { students: 0, teachers: 0 },
     };
@@ -171,8 +171,23 @@ export async function confirmImport(req, res, next) {
       mappingsCount: results.mappings.inserted,
     });
 
+    const studentsInserted = results.students?.inserted || 0;
+    const studentsSkipped = results.students?.skipped || 0;
+    const teachersInserted = results.teachers?.inserted || 0;
+    const teachersSkipped = results.teachers?.skipped || 0;
+
+    let message = `Import complete. Added ${studentsInserted} student record(s) and ${teachersInserted} teacher record(s).`;
+
+    if (studentsSkipped > 0 || teachersSkipped > 0) {
+      message += ` Skipped ${studentsSkipped + teachersSkipped} duplicate record(s) that already exist.`;
+    }
+
+    if (studentsInserted === 0 && teachersInserted === 0 && (studentsSkipped > 0 || teachersSkipped > 0)) {
+      message = "All imported records already exist in the database. No new records were added.";
+    }
+
     return res.json({
-      message: "Import confirmed successfully",
+      message,
       results,
     });
   } catch (error) {
@@ -208,6 +223,13 @@ export async function fetchDashboardStats(req, res, next) {
 
     const [teacherCount] = await pool.query(
       `SELECT COUNT(DISTINCT teacher_id) as count FROM teacher_details_db`,
+    );
+
+    const [currentSessionCount] = await pool.query(
+      `SELECT COUNT(*) AS count
+       FROM attendance_sessions
+       WHERE COALESCE(status, 'active') = 'active'
+         AND ended_at IS NULL`,
     );
 
     // Get distinct streams from student records
@@ -264,6 +286,7 @@ export async function fetchDashboardStats(req, res, next) {
     const response = {
       students: studentCount?.[0]?.count || 0,
       teachers: teacherCount?.[0]?.count || 0,
+      currentSessions: currentSessionCount?.[0]?.count || 0,
       streams: streamsList.map((s) => s.stream),
       divisions: uniqueDivisions,
       subjects: subjectsList.map((s) => s.subject),
@@ -277,6 +300,45 @@ export async function fetchDashboardStats(req, res, next) {
 
     return res.json(response);
   } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getCurrentSessions(req, res, next) {
+  try {
+    const query = `
+      SELECT
+        s.session_id,
+        s.teacher_id,
+        COALESCE(MAX(t.name), s.teacher_id) AS teacher_name,
+        s.subject,
+        s.year,
+        s.stream,
+        s.division,
+        s.started_at
+      FROM attendance_sessions s
+      LEFT JOIN teacher_details_db t ON t.teacher_id = s.teacher_id
+      WHERE COALESCE(s.status, 'active') = 'active'
+        AND s.ended_at IS NULL
+      GROUP BY
+        s.session_id,
+        s.teacher_id,
+        s.subject,
+        s.year,
+        s.stream,
+        s.division,
+        s.started_at
+      ORDER BY s.started_at DESC
+    `;
+
+    const [currentSessions] = await pool.query(query);
+
+    return res.json({
+      currentSessions: currentSessions || [],
+      count: currentSessions?.length || 0,
+    });
+  } catch (error) {
+    console.error("Get current sessions error:", error);
     return next(error);
   }
 }
@@ -976,6 +1038,11 @@ export async function getTeachersInfo(req, res, next) {
         GROUP_CONCAT(DISTINCT t.stream ORDER BY t.stream SEPARATOR ', ') as stream,
         GROUP_CONCAT(DISTINCT t.semester ORDER BY t.semester SEPARATOR ', ') as semester,
         GROUP_CONCAT(DISTINCT t.division ORDER BY t.division SEPARATOR ', ') as division,
+        CASE 
+          WHEN SUM(CASE WHEN UPPER(COALESCE(t.status, 'Active')) = 'INACTIVE' THEN 1 ELSE 0 END) > 0
+            THEN 'Inactive'
+          ELSE 'Active'
+        END as status,
         (
           SELECT COUNT(DISTINCT tsm.student_id)
           FROM teacher_student_map tsm
@@ -1007,6 +1074,607 @@ export async function getTeachersInfo(req, res, next) {
   }
 }
 
+export async function addTeacher(req, res, next) {
+  try {
+    const {
+      teacherId,
+      teacherName,
+      division,
+      mappings,
+    } = req.body || {};
+
+    if (!teacherId || !teacherName || !division) {
+      return res.status(400).json({
+        message: "Teacher ID, teacher name, and common division are required",
+      });
+    }
+
+    if (!Array.isArray(mappings) || mappings.length === 0) {
+      return res.status(400).json({
+        message: "At least one subject mapping is required",
+      });
+    }
+
+    const cleanDivision = [...new Set(
+      String(division)
+        .split(",")
+        .map((part) => part.trim().toUpperCase())
+        .filter(Boolean),
+    )].join(",");
+
+    if (!cleanDivision) {
+      return res.status(400).json({
+        message: "Division must contain at least one valid value",
+      });
+    }
+
+    const validMappings = mappings
+      .map((item) => ({
+        subject: String(item?.subject || "").trim(),
+        year: String(item?.year || "").trim(),
+        semester: String(item?.semester || "").trim(),
+        stream: String(item?.stream || "").trim(),
+      }))
+      .filter((item) =>
+        item.subject && item.year && item.semester && item.stream,
+      );
+
+    if (!validMappings.length) {
+      return res.status(400).json({
+        message:
+          "Each mapping must include subject, year, semester, and stream",
+      });
+    }
+
+    const uniqueMap = new Map();
+    validMappings.forEach((item) => {
+      const key = [item.subject, item.year, item.semester, item.stream]
+        .map((part) => part.toUpperCase())
+        .join("|");
+      if (!uniqueMap.has(key)) uniqueMap.set(key, item);
+    });
+
+    const teacherRows = Array.from(uniqueMap.values()).map((item) => ({
+      teacherId: String(teacherId).trim(),
+      name: String(teacherName).trim(),
+      subject: item.subject,
+      year: item.year,
+      stream: item.stream,
+      semester: item.semester,
+      division: cleanDivision,
+    }));
+
+    const upsertResult = await upsertTeachers(teacherRows, req.session.user.id);
+
+    let mappedResult = { mapped: 0 };
+    try {
+      mappedResult = await autoMapStudentsToTeachers(req.session.user.id);
+    } catch (error) {
+      console.error("Auto-mapping after add teacher failed:", error);
+    }
+
+    return res.json({
+      message: "Teacher added successfully",
+      teacherId: String(teacherId).trim(),
+      assignmentsAdded: teacherRows.length,
+      result: upsertResult,
+      autoMapping: mappedResult,
+    });
+  } catch (error) {
+    console.error("Add teacher error:", error);
+    return next(error);
+  }
+}
+
+export async function getTeacherForEdit(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+
+    if (!teacherId) {
+      return res.status(400).json({
+        message: "Teacher ID is required",
+      });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT teacher_id, name, subject, year, stream, semester, division
+       FROM teacher_details_db
+       WHERE teacher_id = ?
+       ORDER BY subject, year, semester, stream`,
+      [teacherId],
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        message: "Teacher not found",
+      });
+    }
+
+    const divisionSet = new Set();
+    rows.forEach((row) => {
+      (row.division || "")
+        .split(",")
+        .map((part) => part.trim().toUpperCase())
+        .filter(Boolean)
+        .forEach((part) => divisionSet.add(part));
+    });
+
+    return res.json({
+      teacher: {
+        teacherId: rows[0].teacher_id,
+        teacherName: rows[0].name,
+        division: Array.from(divisionSet).join(","),
+        assignments: rows.map((row) => ({
+          subject: row.subject,
+          year: row.year,
+          semester: row.semester,
+          stream: row.stream,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Get teacher for edit error:", error);
+    return next(error);
+  }
+}
+
+export async function updateTeacherInfo(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const { teacherId } = req.params;
+    const {
+      teacherName,
+      division,
+      mappings,
+    } = req.body || {};
+
+    if (!teacherId || !teacherName || !division) {
+      return res.status(400).json({
+        message: "Teacher ID, teacher name, and common division are required",
+      });
+    }
+
+    if (!Array.isArray(mappings) || mappings.length === 0) {
+      return res.status(400).json({
+        message: "At least one subject mapping is required",
+      });
+    }
+
+    const cleanDivision = [...new Set(
+      String(division)
+        .split(",")
+        .map((part) => part.trim().toUpperCase())
+        .filter(Boolean),
+    )].join(",");
+
+    if (!cleanDivision) {
+      return res.status(400).json({
+        message: "Division must contain at least one valid value",
+      });
+    }
+
+    const validMappings = mappings
+      .map((item) => ({
+        subject: String(item?.subject || "").trim(),
+        year: String(item?.year || "").trim(),
+        semester: String(item?.semester || "").trim(),
+        stream: String(item?.stream || "").trim(),
+      }))
+      .filter((item) =>
+        item.subject && item.year && item.semester && item.stream,
+      );
+
+    if (!validMappings.length) {
+      return res.status(400).json({
+        message:
+          "Each mapping must include subject, year, semester, and stream",
+      });
+    }
+
+    const uniqueMap = new Map();
+    validMappings.forEach((item) => {
+      const key = [item.subject, item.year, item.semester, item.stream]
+        .map((part) => part.toUpperCase())
+        .join("|");
+      if (!uniqueMap.has(key)) uniqueMap.set(key, item);
+    });
+
+    const assignmentRows = Array.from(uniqueMap.values());
+
+    await connection.beginTransaction();
+
+    const [existing] = await connection.query(
+      `SELECT COUNT(*) AS count, COALESCE(MAX(status), 'Active') AS current_status
+       FROM teacher_details_db
+       WHERE teacher_id = ?`,
+      [teacherId],
+    );
+    if (!existing?.[0]?.count) {
+      await connection.rollback();
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    const currentStatus =
+      String(existing[0].current_status || "Active").toLowerCase() ===
+        "inactive"
+        ? "Inactive"
+        : "Active";
+
+    await connection.query(
+      `DELETE FROM teacher_details_db WHERE teacher_id = ?`,
+      [teacherId],
+    );
+
+    const values = assignmentRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
+    const params = assignmentRows.flatMap((item) => [
+      String(teacherId).trim(),
+      String(teacherName).trim(),
+      item.subject,
+      item.year,
+      item.stream,
+      item.semester,
+      cleanDivision,
+      currentStatus,
+    ]);
+
+    await connection.query(
+      `INSERT INTO teacher_details_db
+         (teacher_id, name, subject, year, stream, semester, division, status)
+       VALUES ${values}`,
+      params,
+    );
+
+    await connection.commit();
+
+    let mappedResult = { mapped: 0 };
+    try {
+      mappedResult = await autoMapStudentsToTeachers(req.session.user.id);
+    } catch (error) {
+      console.error("Auto-mapping after edit teacher failed:", error);
+    }
+
+    return res.json({
+      message: "Teacher information updated successfully",
+      teacherId: String(teacherId).trim(),
+      assignmentsUpdated: assignmentRows.length,
+      autoMapping: mappedResult,
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Update teacher info error:", error);
+    return next(error);
+  } finally {
+    connection.release();
+  }
+}
+
+export async function updateTeacherTeachingStatus(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    const { status } = req.body || {};
+
+    if (!teacherId) {
+      return res.status(400).json({ message: "Teacher ID is required" });
+    }
+
+    const normalizedStatus =
+      String(status || "").toLowerCase() === "inactive"
+        ? "Inactive"
+        : String(status || "").toLowerCase() === "active"
+          ? "Active"
+          : null;
+
+    if (!normalizedStatus) {
+      return res.status(400).json({
+        message: "Status must be either 'Active' or 'Inactive'",
+      });
+    }
+
+    const [exists] = await pool.query(
+      `SELECT COUNT(*) AS count FROM teacher_details_db WHERE teacher_id = ?`,
+      [teacherId],
+    );
+
+    if (!exists?.[0]?.count) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    await pool.query(
+      `UPDATE teacher_details_db
+       SET status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE teacher_id = ?`,
+      [normalizedStatus, teacherId],
+    );
+
+    return res.json({
+      message: `Teacher ${teacherId} is now ${normalizedStatus}`,
+      teacherId,
+      status: normalizedStatus,
+    });
+  } catch (error) {
+    console.error("Update teacher teaching status error:", error);
+    return next(error);
+  }
+}
+
+export async function addStudent(req, res, next) {
+  try {
+    const {
+      studentId,
+      studentName,
+      rollNo,
+      year,
+      stream,
+      division,
+    } = req.body || {};
+
+    if (!studentId || !studentName || rollNo === undefined || !year || !stream || !division) {
+      return res.status(400).json({
+        message:
+          "Student ID, name, roll no, year, stream, and division are required",
+      });
+    }
+
+    const cleanStudentId = String(studentId).trim();
+    const cleanStudentName = String(studentName).trim();
+    const cleanYear = String(year).trim().toUpperCase();
+    const cleanStream = String(stream).trim().toUpperCase();
+    const cleanDivision = String(division).trim().toUpperCase();
+    const parsedRoll = Number(rollNo);
+
+    if (!Number.isFinite(parsedRoll) || parsedRoll <= 0) {
+      return res.status(400).json({ message: "Roll no must be a valid positive number" });
+    }
+
+    const [existing] = await pool.query(
+      `SELECT COUNT(*) AS count FROM student_details_db WHERE student_id = ?`,
+      [cleanStudentId],
+    );
+    if (existing?.[0]?.count) {
+      return res.status(409).json({
+        message: `Student ${cleanStudentId} already exists`,
+      });
+    }
+
+    await pool.query(
+      `INSERT INTO student_details_db
+       (student_id, student_name, roll_no, year, stream, division, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'Active')`,
+      [cleanStudentId, cleanStudentName, parsedRoll, cleanYear, cleanStream, cleanDivision],
+    );
+
+    try {
+      await autoMapStudentsToTeachers(req.session.user.id);
+    } catch (error) {
+      console.error("Auto-mapping after add student failed:", error);
+    }
+
+    return res.json({
+      message: "Student added successfully",
+      studentId: cleanStudentId,
+    });
+  } catch (error) {
+    console.error("Add student error:", error);
+    return next(error);
+  }
+}
+
+export async function getStudentForEdit(req, res, next) {
+  try {
+    const { studentId } = req.params;
+
+    if (!studentId) {
+      return res.status(400).json({ message: "Student ID is required" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT student_id, student_name, roll_no, year, stream, division, COALESCE(status, 'Active') AS status
+       FROM student_details_db
+       WHERE student_id = ?
+       LIMIT 1`,
+      [studentId],
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    const row = rows[0];
+    return res.json({
+      student: {
+        studentId: row.student_id,
+        studentName: row.student_name,
+        rollNo: row.roll_no,
+        year: row.year,
+        stream: row.stream,
+        division: row.division,
+        status: row.status,
+      },
+    });
+  } catch (error) {
+    console.error("Get student for edit error:", error);
+    return next(error);
+  }
+}
+
+export async function updateStudentInfo(req, res, next) {
+  try {
+    const { studentId } = req.params;
+    const {
+      studentName,
+      rollNo,
+      year,
+      stream,
+      division,
+    } = req.body || {};
+
+    if (!studentId || !studentName || rollNo === undefined || !year || !stream || !division) {
+      return res.status(400).json({
+        message: "Student name, roll no, year, stream, and division are required",
+      });
+    }
+
+    const cleanStudentName = String(studentName).trim();
+    const cleanYear = String(year).trim().toUpperCase();
+    const cleanStream = String(stream).trim().toUpperCase();
+    const cleanDivision = String(division).trim().toUpperCase();
+    const parsedRoll = Number(rollNo);
+
+    if (!Number.isFinite(parsedRoll) || parsedRoll <= 0) {
+      return res.status(400).json({ message: "Roll no must be a valid positive number" });
+    }
+
+    const [existing] = await pool.query(
+      `SELECT COUNT(*) AS count FROM student_details_db WHERE student_id = ?`,
+      [studentId],
+    );
+    if (!existing?.[0]?.count) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    await pool.query(
+      `UPDATE student_details_db
+       SET student_name = ?,
+           roll_no = ?,
+           year = ?,
+           stream = ?,
+           division = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE student_id = ?`,
+      [cleanStudentName, parsedRoll, cleanYear, cleanStream, cleanDivision, studentId],
+    );
+
+    try {
+      await autoMapStudentsToTeachers(req.session.user.id);
+    } catch (error) {
+      console.error("Auto-mapping after edit student failed:", error);
+    }
+
+    return res.json({
+      message: "Student information updated successfully",
+      studentId,
+    });
+  } catch (error) {
+    console.error("Update student info error:", error);
+    return next(error);
+  }
+}
+
+export async function updateStudentStatus(req, res, next) {
+  try {
+    const { studentId } = req.params;
+    const { status } = req.body || {};
+
+    if (!studentId) {
+      return res.status(400).json({ message: "Student ID is required" });
+    }
+
+    const normalizedStatus =
+      String(status || "").toLowerCase() === "inactive"
+        ? "Inactive"
+        : String(status || "").toLowerCase() === "active"
+          ? "Active"
+          : null;
+
+    if (!normalizedStatus) {
+      return res.status(400).json({
+        message: "Status must be either 'Active' or 'Inactive'",
+      });
+    }
+
+    const [exists] = await pool.query(
+      `SELECT COUNT(*) AS count FROM student_details_db WHERE student_id = ?`,
+      [studentId],
+    );
+
+    if (!exists?.[0]?.count) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    await pool.query(
+      `UPDATE student_details_db
+       SET status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE student_id = ?`,
+      [normalizedStatus, studentId],
+    );
+
+    try {
+      await autoMapStudentsToTeachers(req.session.user.id);
+    } catch (error) {
+      console.error("Auto-mapping after student status update failed:", error);
+    }
+
+    return res.json({
+      message: `Student ${studentId} is now ${normalizedStatus}`,
+      studentId,
+      status: normalizedStatus,
+    });
+  } catch (error) {
+    console.error("Update student status error:", error);
+    return next(error);
+  }
+}
+
+export async function bulkUpdateStudentStatus(req, res, next) {
+  try {
+    const { year, stream, division, status } = req.body || {};
+
+    if (!year || !stream || !division || !status) {
+      return res.status(400).json({
+        message: "Year, stream, division, and status are required",
+      });
+    }
+
+    const normalizedStatus =
+      String(status || "").toLowerCase() === "inactive"
+        ? "Inactive"
+        : String(status || "").toLowerCase() === "active"
+          ? "Active"
+          : null;
+
+    if (!normalizedStatus) {
+      return res.status(400).json({
+        message: "Status must be either 'Active' or 'Inactive'",
+      });
+    }
+
+    const whereClauses = ["year = ?"];
+    const params = [String(year).trim().toUpperCase()];
+
+    if (String(stream).toUpperCase() !== "ALL") {
+      whereClauses.push("stream = ?");
+      params.push(String(stream).trim().toUpperCase());
+    }
+
+    if (String(division).toUpperCase() !== "ALL") {
+      whereClauses.push("division = ?");
+      params.push(String(division).trim().toUpperCase());
+    }
+
+    const [result] = await pool.query(
+      `UPDATE student_details_db
+       SET status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE ${whereClauses.join(" AND ")}`,
+      [normalizedStatus, ...params],
+    );
+
+    try {
+      await autoMapStudentsToTeachers(req.session.user.id);
+    } catch (error) {
+      console.error("Auto-mapping after bulk student status update failed:", error);
+    }
+
+    return res.json({
+      message: `Updated ${result.affectedRows || 0} student record(s) to ${normalizedStatus}`,
+      updated: result.affectedRows || 0,
+      status: normalizedStatus,
+    });
+  } catch (error) {
+    console.error("Bulk update student status error:", error);
+    return next(error);
+  }
+}
+
 // Student Information by Stream and Division
 export async function getStudentsInfo(req, res, next) {
   try {
@@ -1019,20 +1687,17 @@ export async function getStudentsInfo(req, res, next) {
       division,
     });
 
-    if (!year || !stream || !semester || !division) {
-      return res.status(400).json({
-        message: "Year, stream, semester, and division are required",
-      });
-    }
+    // Build dynamic WHERE clause for students (all filters are optional)
+    let studentsConditions = [];
+    let studentsParams = [];
 
-    // Build dynamic WHERE clause for students
-    let studentsWhere = "WHERE year = ? AND stream = ?";
-    let studentsParams = [year, stream];
+    if (year) { studentsConditions.push("year = ?"); studentsParams.push(year); }
+    if (stream) { studentsConditions.push("stream = ?"); studentsParams.push(stream); }
+    if (division && division !== "ALL") { studentsConditions.push("division = ?"); studentsParams.push(division); }
 
-    if (division !== "ALL") {
-      studentsWhere += " AND division = ?";
-      studentsParams.push(division);
-    }
+    const studentsWhere = studentsConditions.length > 0
+      ? "WHERE " + studentsConditions.join(" AND ")
+      : "";
 
     // Get students
     const studentsQuery = `
@@ -1042,7 +1707,8 @@ export async function getStudentsInfo(req, res, next) {
         roll_no,
         year,
         stream,
-        division
+        division,
+        COALESCE(status, 'Active') AS status
       FROM student_details_db
       ${studentsWhere}
       ORDER BY 
@@ -1068,23 +1734,21 @@ export async function getStudentsInfo(req, res, next) {
       );
     }
 
-    // Build WHERE clause for subjects/teachers (teachers have semesters)
-    let teacherWhere = "WHERE year = ? AND stream = ?";
-    let teacherParams = [year, stream];
+    // Build WHERE clause for subjects/teachers (all filters are optional)
+    let teacherConditions = [];
+    let teacherParams = [];
 
-    if (semester !== "ALL") {
-      teacherWhere += " AND semester = ?";
-      teacherParams.push(semester);
-    }
-
-    if (division !== "ALL") {
-      // Split comma-separated divisions for teachers
-      teacherWhere += " AND (";
-      const divisionConditions = [];
-      divisionConditions.push("FIND_IN_SET(?, division) > 0");
+    if (year) { teacherConditions.push("year = ?"); teacherParams.push(year); }
+    if (stream) { teacherConditions.push("stream = ?"); teacherParams.push(stream); }
+    if (semester && semester !== "ALL") { teacherConditions.push("semester = ?"); teacherParams.push(semester); }
+    if (division && division !== "ALL") {
+      teacherConditions.push("FIND_IN_SET(?, division) > 0");
       teacherParams.push(division);
-      teacherWhere += divisionConditions.join(" OR ") + ")";
     }
+
+    const teacherWhere = teacherConditions.length > 0
+      ? "WHERE " + teacherConditions.join(" AND ")
+      : "";
 
     // Get subjects taught in this year/stream/semester/division
     const subjectsQuery = `
@@ -1382,7 +2046,7 @@ export async function deleteAttendanceSession(req, res, next) {
 export async function getAllStudents(req, res, next) {
   try {
     const [students] = await pool.query(
-      `SELECT student_id, student_name, year, stream, division
+      `SELECT student_id, student_name, year, stream, division, COALESCE(status, 'Active') AS status
        FROM student_details_db
        ORDER BY year, 
          CASE 

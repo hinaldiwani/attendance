@@ -21,6 +21,15 @@ import {
   updateMonthlyAttendance,
   getAttendanceDates,
   getTeachersInfo,
+  addTeacher,
+  getTeacherForEdit,
+  updateTeacherInfo,
+  updateTeacherTeachingStatus,
+  addStudent,
+  getStudentForEdit,
+  updateStudentInfo,
+  updateStudentStatus,
+  bulkUpdateStudentStatus,
   getStudentsInfo,
   getStreamsDivisions,
   getTeacherDivisions,
@@ -33,6 +42,7 @@ import {
   getAllTeachers,
   getAllSubjects,
   getAllDivisions,
+  getCurrentSessions,
   getStudentsByFilters,
   getAdminDefaulterHistory,
   viewAdminDefaulterHistoryEntry,
@@ -95,6 +105,15 @@ router.get("/attendance-dates", getAttendanceDates);
 
 // Teacher and Student information routes
 router.get("/teachers-info", getTeachersInfo);
+router.post("/teachers/add", addTeacher);
+router.get("/teachers/:teacherId/edit", getTeacherForEdit);
+router.put("/teachers/:teacherId/update", updateTeacherInfo);
+router.put("/teachers/:teacherId/status", updateTeacherTeachingStatus);
+router.post("/students/add", addStudent);
+router.get("/students/:studentId/edit", getStudentForEdit);
+router.put("/students/:studentId/update", updateStudentInfo);
+router.put("/students/:studentId/status", updateStudentStatus);
+router.put("/students/status/bulk", bulkUpdateStudentStatus);
 router.get("/students", getStudentsByFilters);
 router.get("/students-info", getStudentsInfo);
 router.get("/streams-divisions", getStreamsDivisions);
@@ -108,6 +127,7 @@ router.get("/all-students", getAllStudents);
 router.get("/all-teachers", getAllTeachers);
 router.get("/all-subjects", getAllSubjects);
 router.get("/all-divisions", getAllDivisions);
+router.get("/current-sessions", getCurrentSessions);
 
 // Real-time updates via Server-Sent Events
 router.get("/live-updates", (req, res) => {

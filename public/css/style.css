@@ -29,6 +29,7 @@ body {
   color: var(--color-text);
   line-height: 1.5;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a {
@@ -232,6 +233,10 @@ button {
 .card.active {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
+}
+
+tr.inline-search-match td {
+  background: #fff6cc;
 }
 
 .card h2,
@@ -664,6 +669,112 @@ tbody td {
   .content-panel {
     order: 2;
     padding: 1.5rem;
+  }
+}
+
+/* Responsive layout tuning for tablets and phones */
+@media (max-width: 900px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header> :last-child {
+    width: 100%;
+  }
+
+  .sidebar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+
+  .stat-value {
+    font-size: 1.9rem;
+  }
+
+  table {
+    font-size: 0.9rem;
+  }
+
+  thead th,
+  tbody td {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    font-size: 15px;
+  }
+
+  .container,
+  .sidebar-panel,
+  .content-panel {
+    padding: 1rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .header .btn,
+  .header a.btn,
+  .header button {
+    flex: 1 1 140px;
+    width: auto;
+  }
+
+  .brand h1 {
+    font-size: 1.2rem;
+  }
+
+  .stat-value {
+    font-size: 1.65rem;
+  }
+
+  .table-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  dialog {
+    width: min(95vw, 1100px) !important;
+    max-height: 86vh !important;
+    padding: 1rem !important;
+  }
+
+  .toast-stack {
+    inset: 0.75rem;
+    align-items: stretch;
+  }
+
+  .toast {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    font-size: 14px;
+  }
+
+  .brand {
+    align-items: flex-start;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+  }
+
+  thead th,
+  tbody td {
+    padding: 0.6rem;
   }
 }
 

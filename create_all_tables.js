@@ -5,24 +5,24 @@ import pool from "./config/db.js";
  * Includes commit and rollback functionality to ensure data integrity
  */
 async function createAllTables() {
-    const connection = await pool.getConnection();
+  const connection = await pool.getConnection();
 
-    try {
-        console.log("🚀 Starting database table creation with transaction support...\n");
+  try {
+    console.log("🚀 Starting database table creation with transaction support...\n");
 
-        // BEGIN TRANSACTION
-        await connection.beginTransaction();
-        console.log("✓ Transaction started\n");
+    // BEGIN TRANSACTION
+    await connection.beginTransaction();
+    console.log("✓ Transaction started\n");
 
-        // Disable foreign key checks for clean table creation
-        await connection.query("SET FOREIGN_KEY_CHECKS = 0");
-        console.log("✓ Foreign key checks disabled\n");
+    // Disable foreign key checks for clean table creation
+    await connection.query("SET FOREIGN_KEY_CHECKS = 0");
+    console.log("✓ Foreign key checks disabled\n");
 
-        // =================================================================
-        // 1. STUDENT DETAILS TABLE
-        // =================================================================
-        console.log("📝 Creating student_details_db...");
-        await connection.query(`
+    // =================================================================
+    // 1. STUDENT DETAILS TABLE
+    // =================================================================
+    console.log("📝 Creating student_details_db...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS student_details_db (
         student_id   VARCHAR(50)  NOT NULL,
         student_name VARCHAR(255) NOT NULL,
@@ -30,18 +30,19 @@ async function createAllTables() {
         year         VARCHAR(10)  DEFAULT NULL,
         stream       VARCHAR(100) DEFAULT NULL,
         division     VARCHAR(100) DEFAULT NULL,
+        status       ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active',
         created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
         updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (student_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ student_details_db created\n");
+    console.log("  ✓ student_details_db created\n");
 
-        // =================================================================
-        // 2. TEACHER DETAILS TABLE
-        // =================================================================
-        console.log("📝 Creating teacher_details_db...");
-        await connection.query(`
+    // =================================================================
+    // 2. TEACHER DETAILS TABLE
+    // =================================================================
+    console.log("📝 Creating teacher_details_db...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS teacher_details_db (
         teacher_id  VARCHAR(50)  NOT NULL,
         name        VARCHAR(255) NOT NULL,
@@ -57,13 +58,13 @@ async function createAllTables() {
         INDEX       idx_teacher_id_lookup (teacher_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ teacher_details_db created\n");
+    console.log("  ✓ teacher_details_db created\n");
 
-        // =================================================================
-        // 3. TEACHER-STUDENT MAPPING TABLE
-        // =================================================================
-        console.log("📝 Creating teacher_student_map...");
-        await connection.query(`
+    // =================================================================
+    // 3. TEACHER-STUDENT MAPPING TABLE
+    // =================================================================
+    console.log("📝 Creating teacher_student_map...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS teacher_student_map (
         id          INT AUTO_INCREMENT,
         teacher_id  VARCHAR(50) NOT NULL,
@@ -81,13 +82,13 @@ async function createAllTables() {
         FOREIGN KEY (student_id) REFERENCES student_details_db(student_id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ teacher_student_map created\n");
+    console.log("  ✓ teacher_student_map created\n");
 
-        // =================================================================
-        // 4. ATTENDANCE SESSIONS TABLE
-        // =================================================================
-        console.log("📝 Creating attendance_sessions...");
-        await connection.query(`
+    // =================================================================
+    // 4. ATTENDANCE SESSIONS TABLE
+    // =================================================================
+    console.log("📝 Creating attendance_sessions...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS attendance_sessions (
         session_id    VARCHAR(100)  NOT NULL,
         teacher_id    VARCHAR(50)   NOT NULL,
@@ -104,13 +105,13 @@ async function createAllTables() {
         PRIMARY KEY (session_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ attendance_sessions created\n");
+    console.log("  ✓ attendance_sessions created\n");
 
-        // =================================================================
-        // 5. ATTENDANCE RECORDS TABLE
-        // =================================================================
-        console.log("📝 Creating attendance_records...");
-        await connection.query(`
+    // =================================================================
+    // 5. ATTENDANCE RECORDS TABLE
+    // =================================================================
+    console.log("📝 Creating attendance_records...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS attendance_records (
         session_id  VARCHAR(100) NOT NULL,
         teacher_id  VARCHAR(50)  NOT NULL,
@@ -122,13 +123,13 @@ async function createAllTables() {
         FOREIGN KEY (student_id) REFERENCES student_details_db(student_id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ attendance_records created\n");
+    console.log("  ✓ attendance_records created\n");
 
-        // =================================================================
-        // 6. ATTENDANCE BACKUP TABLE
-        // =================================================================
-        console.log("📝 Creating attendance_backup...");
-        await connection.query(`
+    // =================================================================
+    // 6. ATTENDANCE BACKUP TABLE
+    // =================================================================
+    console.log("📝 Creating attendance_backup...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS attendance_backup (
         id           INT          NOT NULL AUTO_INCREMENT,
         filename     VARCHAR(255) DEFAULT NULL,
@@ -146,13 +147,13 @@ async function createAllTables() {
         PRIMARY KEY (id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ attendance_backup created\n");
+    console.log("  ✓ attendance_backup created\n");
 
-        // =================================================================
-        // 7. DEFAULTER HISTORY LISTS TABLE
-        // =================================================================
-        console.log("📝 Creating Defaulter_History_Lists...");
-        await connection.query(`
+    // =================================================================
+    // 7. DEFAULTER HISTORY LISTS TABLE
+    // =================================================================
+    console.log("📝 Creating Defaulter_History_Lists...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS Defaulter_History_Lists (
         id              INT          NOT NULL AUTO_INCREMENT,
         teacher_id      VARCHAR(50)  NOT NULL,
@@ -171,13 +172,13 @@ async function createAllTables() {
         KEY idx_dhl_created (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ Defaulter_History_Lists created\n");
+    console.log("  ✓ Defaulter_History_Lists created\n");
 
-        // =================================================================
-        // 8. MONTHLY ATTENDANCE SUMMARY TABLE
-        // =================================================================
-        console.log("📝 Creating monthly_attendance_summary...");
-        await connection.query(`
+    // =================================================================
+    // 8. MONTHLY ATTENDANCE SUMMARY TABLE
+    // =================================================================
+    console.log("📝 Creating monthly_attendance_summary...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS monthly_attendance_summary (
         id               INT          NOT NULL AUTO_INCREMENT,
         student_id       VARCHAR(50)  NOT NULL,
@@ -192,13 +193,13 @@ async function createAllTables() {
         FOREIGN KEY (student_id) REFERENCES student_details_db(student_id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ monthly_attendance_summary created\n");
+    console.log("  ✓ monthly_attendance_summary created\n");
 
-        // =================================================================
-        // 9. STUDENT ATTENDANCE STATS TABLE
-        // =================================================================
-        console.log("📝 Creating student_attendance_stats...");
-        await connection.query(`
+    // =================================================================
+    // 9. STUDENT ATTENDANCE STATS TABLE
+    // =================================================================
+    console.log("📝 Creating student_attendance_stats...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS student_attendance_stats (
         id                    INT          NOT NULL AUTO_INCREMENT,
         student_id            VARCHAR(50)  NOT NULL,
@@ -212,13 +213,13 @@ async function createAllTables() {
         FOREIGN KEY (student_id) REFERENCES student_details_db(student_id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ student_attendance_stats created\n");
+    console.log("  ✓ student_attendance_stats created\n");
 
-        // =================================================================
-        // 10. ACTIVITY LOGS TABLE
-        // =================================================================
-        console.log("📝 Creating activity_logs...");
-        await connection.query(`
+    // =================================================================
+    // 10. ACTIVITY LOGS TABLE
+    // =================================================================
+    console.log("📝 Creating activity_logs...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS activity_logs (
         id         INT          NOT NULL AUTO_INCREMENT,
         actor_role VARCHAR(20)  NOT NULL COMMENT 'admin | teacher | student',
@@ -231,13 +232,13 @@ async function createAllTables() {
         KEY idx_al_created (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ activity_logs created\n");
+    console.log("  ✓ activity_logs created\n");
 
-        // =================================================================
-        // 11. SESSIONS TABLE (express-session)
-        // =================================================================
-        console.log("📝 Creating sessions...");
-        await connection.query(`
+    // =================================================================
+    // 11. SESSIONS TABLE (express-session)
+    // =================================================================
+    console.log("📝 Creating sessions...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS sessions (
         session_id VARCHAR(128) NOT NULL,
         expires    INT UNSIGNED NOT NULL,
@@ -245,13 +246,13 @@ async function createAllTables() {
         PRIMARY KEY (session_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ sessions created\n");
+    console.log("  ✓ sessions created\n");
 
-        // =================================================================
-        // 12. ADMIN CREDENTIALS TABLE
-        // =================================================================
-        console.log("📝 Creating admin_credentials...");
-        await connection.query(`
+    // =================================================================
+    // 12. ADMIN CREDENTIALS TABLE
+    // =================================================================
+    console.log("📝 Creating admin_credentials...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS admin_credentials (
         id         INT          AUTO_INCREMENT PRIMARY KEY,
         username   VARCHAR(255) UNIQUE NOT NULL,
@@ -260,13 +261,13 @@ async function createAllTables() {
         updated_at DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ admin_credentials created\n");
+    console.log("  ✓ admin_credentials created\n");
 
-        // =================================================================
-        // 13. GEOLOCATION LOGS TABLE
-        // =================================================================
-        console.log("📝 Creating geolocation_logs...");
-        await connection.query(`
+    // =================================================================
+    // 13. GEOLOCATION LOGS TABLE
+    // =================================================================
+    console.log("📝 Creating geolocation_logs...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS geolocation_logs (
         id         INT          AUTO_INCREMENT PRIMARY KEY,
         student_id VARCHAR(50)  NOT NULL,
@@ -280,13 +281,13 @@ async function createAllTables() {
         KEY idx_timestamp (timestamp)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ geolocation_logs created\n");
+    console.log("  ✓ geolocation_logs created\n");
 
-        // =================================================================
-        // 14. SELF MARKING TABLE
-        // =================================================================
-        console.log("📝 Creating self_marking...");
-        await connection.query(`
+    // =================================================================
+    // 14. SELF MARKING TABLE
+    // =================================================================
+    console.log("📝 Creating self_marking...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS self_marking (
         id         INT          AUTO_INCREMENT PRIMARY KEY,
         student_id VARCHAR(50)  NOT NULL,
@@ -296,13 +297,13 @@ async function createAllTables() {
         KEY idx_marked_at (marked_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ self_marking created\n");
+    console.log("  ✓ self_marking created\n");
 
-        // =================================================================
-        // 15. MANUAL OVERRIDES TABLE
-        // =================================================================
-        console.log("📝 Creating manual_overrides...");
-        await connection.query(`
+    // =================================================================
+    // 15. MANUAL OVERRIDES TABLE
+    // =================================================================
+    console.log("📝 Creating manual_overrides...");
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS manual_overrides (
         id         INT          AUTO_INCREMENT PRIMARY KEY,
         teacher_id VARCHAR(50)  NOT NULL,
@@ -315,61 +316,61 @@ async function createAllTables() {
         KEY idx_timestamp (timestamp)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
-        console.log("  ✓ manual_overrides created\n");
+    console.log("  ✓ manual_overrides created\n");
 
-        // Re-enable foreign key checks
-        await connection.query("SET FOREIGN_KEY_CHECKS = 1");
-        console.log("✓ Foreign key checks re-enabled\n");
+    // Re-enable foreign key checks
+    await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    console.log("✓ Foreign key checks re-enabled\n");
 
-        // COMMIT TRANSACTION
-        await connection.commit();
-        console.log("✅ TRANSACTION COMMITTED - All tables created successfully!\n");
+    // COMMIT TRANSACTION
+    await connection.commit();
+    console.log("✅ TRANSACTION COMMITTED - All tables created successfully!\n");
 
-        // Verify tables were created
-        const [tables] = await connection.query(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = ?",
-            [process.env.DB_NAME || "markin_attendance"]
-        );
+    // Verify tables were created
+    const [tables] = await connection.query(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = ?",
+      [process.env.DB_NAME || "markin_attendance"]
+    );
 
-        console.log("═══════════════════════════════════════════════════════");
-        console.log("📊 DATABASE CREATION SUMMARY");
-        console.log("═══════════════════════════════════════════════════════");
-        console.log(`Total tables created: ${tables.length}\n`);
-        console.log("Tables list:");
-        tables.forEach((table, index) => {
-            console.log(`  ${index + 1}. ${table.TABLE_NAME || table.table_name}`);
-        });
-        console.log("═══════════════════════════════════════════════════════\n");
+    console.log("═══════════════════════════════════════════════════════");
+    console.log("📊 DATABASE CREATION SUMMARY");
+    console.log("═══════════════════════════════════════════════════════");
+    console.log(`Total tables created: ${tables.length}\n`);
+    console.log("Tables list:");
+    tables.forEach((table, index) => {
+      console.log(`  ${index + 1}. ${table.TABLE_NAME || table.table_name}`);
+    });
+    console.log("═══════════════════════════════════════════════════════\n");
 
-        console.log("🎉 Database initialization complete!");
-        console.log("   All tables have been created with proper constraints and indexes.");
-        console.log("   Foreign key relationships are properly established.");
+    console.log("🎉 Database initialization complete!");
+    console.log("   All tables have been created with proper constraints and indexes.");
+    console.log("   Foreign key relationships are properly established.");
 
-    } catch (error) {
-        // ROLLBACK TRANSACTION on error
-        console.error("\n❌ ERROR OCCURRED - Rolling back transaction...");
-        await connection.rollback();
-        console.error("✓ Transaction rolled back - no changes were made to the database\n");
+  } catch (error) {
+    // ROLLBACK TRANSACTION on error
+    console.error("\n❌ ERROR OCCURRED - Rolling back transaction...");
+    await connection.rollback();
+    console.error("✓ Transaction rolled back - no changes were made to the database\n");
 
-        console.error("Error details:", error.message);
-        console.error("\nStack trace:");
-        console.error(error.stack);
+    console.error("Error details:", error.message);
+    console.error("\nStack trace:");
+    console.error(error.stack);
 
-        throw error;
-    } finally {
-        // Always release the connection
-        connection.release();
-        await pool.end();
-    }
+    throw error;
+  } finally {
+    // Always release the connection
+    connection.release();
+    await pool.end();
+  }
 }
 
 // Run the function
 createAllTables()
-    .then(() => {
-        console.log("\n✨ Script completed successfully");
-        process.exit(0);
-    })
-    .catch((error) => {
-        console.error("\n💥 Script failed:", error.message);
-        process.exit(1);
-    });
+  .then(() => {
+    console.log("\n✨ Script completed successfully");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("\n💥 Script failed:", error.message);
+    process.exit(1);
+  });

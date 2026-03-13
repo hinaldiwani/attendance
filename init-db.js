@@ -190,6 +190,81 @@ async function runSchemaMigrations() {
       }
     }
 
+    // Migration 3: Add student status with default Active
+    const [studentStatusColumn] = await connection.query(
+      `SELECT COLUMN_NAME
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'student_details_db'
+         AND COLUMN_NAME = 'status'`,
+    );
+
+    if (studentStatusColumn.length === 0) {
+      await connection.query(`
+        ALTER TABLE student_details_db
+        ADD COLUMN status ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active' AFTER division
+      `);
+      console.log("🔧 Migration: Added status column to student_details_db");
+    }
+
+    await connection.query(`
+      UPDATE student_details_db
+      SET status = 'Active'
+      WHERE status IS NULL OR status = ''
+    `);
+
+    // Migration 4: Add teacher teaching status with default Active
+    const [statusColumn] = await connection.query(
+      `SELECT COLUMN_NAME
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'teacher_details_db'
+         AND COLUMN_NAME = 'status'`,
+    );
+
+    if (statusColumn.length === 0) {
+      await connection.query(`
+        ALTER TABLE teacher_details_db
+        ADD COLUMN status ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active' AFTER division
+      `);
+      console.log("🔧 Migration: Added status column to teacher_details_db");
+    }
+
+    await connection.query(`
+      UPDATE teacher_details_db
+      SET status = 'Active'
+      WHERE status IS NULL OR status = ''
+    `);
+
+    // Migration 5: Ensure attendance_backup has all class context columns
+    const [backupColumns] = await connection.query(
+      `SELECT COLUMN_NAME
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'attendance_backup'`,
+    );
+
+    const existingBackup = new Set(backupColumns.map((row) => row.COLUMN_NAME));
+    const backupAlterDefs = {
+      subject: "ADD COLUMN subject VARCHAR(100) DEFAULT NULL AFTER teacher_id",
+      year: "ADD COLUMN year VARCHAR(10) DEFAULT NULL AFTER subject",
+      semester: "ADD COLUMN semester VARCHAR(20) DEFAULT NULL AFTER year",
+      stream: "ADD COLUMN stream VARCHAR(100) DEFAULT NULL AFTER semester",
+      division: "ADD COLUMN division VARCHAR(100) DEFAULT NULL AFTER stream",
+      records:
+        "ADD COLUMN records LONGTEXT DEFAULT NULL COMMENT 'JSON array of student records' AFTER started_at",
+      file_content:
+        "ADD COLUMN file_content LONGTEXT DEFAULT NULL COMMENT 'Base64-encoded CSV' AFTER records",
+      saved_at: "ADD COLUMN saved_at DATETIME DEFAULT NULL AFTER file_content",
+    };
+
+    for (const [column, alterDef] of Object.entries(backupAlterDefs)) {
+      if (!existingBackup.has(column)) {
+        await connection.query(`ALTER TABLE attendance_backup ${alterDef}`);
+        console.log(`🔧 Migration: Added missing attendance_backup.${column}`);
+      }
+    }
+
   } catch (err) {
     console.error("⚠️  Schema migration error (non-fatal):", err.message);
     // Ensure FK checks are re-enabled even on outer error

@@ -66,13 +66,33 @@ export async function login(req, res, next) {
     }
 
     if (role === "student") {
-      const [rows] = await pool.query(
-        "SELECT student_id, student_name, stream, division, roll_no FROM student_details_db WHERE student_id = ? LIMIT 1",
-        [identifier]
-      );
+      let rows = [];
+      try {
+        const [result] = await pool.query(
+          "SELECT student_id, student_name, stream, division, roll_no, COALESCE(status, 'Active') AS status FROM student_details_db WHERE student_id = ? LIMIT 1",
+          [identifier],
+        );
+        rows = result;
+      } catch (dbError) {
+        if (dbError.code === "ER_BAD_FIELD_ERROR") {
+          const [result] = await pool.query(
+            "SELECT student_id, student_name, stream, division, roll_no FROM student_details_db WHERE student_id = ? LIMIT 1",
+            [identifier],
+          );
+          rows = (result || []).map((row) => ({ ...row, status: "Active" }));
+        } else {
+          throw dbError;
+        }
+      }
 
       if (rows.length === 0) {
         return res.status(401).json({ message: "Student ID not found" });
+      }
+
+      if (String(rows[0].status || "Active").toLowerCase() === "inactive") {
+        return res.status(403).json({
+          message: "Your account is inactive. Please contact the administrator.",
+        });
       }
 
       req.session.user = {

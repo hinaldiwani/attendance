@@ -326,7 +326,7 @@ window.addEventListener("DOMContentLoaded", () => {
       // Don't reset immediately - let loadStats update based on actual data
       // This ensures the checklist reflects the database state
 
-      let message = "All data has been stored successfully.";
+      let message = result.message || "All data has been stored successfully.";
       if (result.results?.cleared) {
         message += ` Cleared ${result.results.cleared.students || 0} students and ${result.results.cleared.teachers || 0} teachers before import.`;
       }
@@ -1521,24 +1521,382 @@ window.addEventListener("DOMContentLoaded", () => {
   const refreshTeachersButton = document.querySelector(
     "[data-refresh-teachers]",
   );
+  const teacherInfoSearchInput = document.querySelector(
+    "[data-teacher-info-search-input]",
+  );
+  const teachersListTab = document.querySelector("[data-teachers-list-tab]");
+  const addTeacherTab = document.querySelector("[data-add-teacher-tab]");
+  const editTeacherTab = document.querySelector("[data-edit-teacher-tab]");
+  const openAddTeacherTabButton = document.querySelector(
+    "[data-open-add-teacher-tab]",
+  );
+  const openEditTeacherTabButton = document.querySelector(
+    "[data-open-edit-teacher-tab]",
+  );
+  const openTeachersListTabButton = document.querySelector(
+    "[data-open-teachers-list-tab]",
+  );
+  const closeEditTeacherTabButton = document.querySelector(
+    "[data-close-edit-teacher-tab]",
+  );
+  const addTeacherForm = document.querySelector("[data-add-teacher-form]");
+  const addMappingRowButton = document.querySelector("[data-add-mapping-row]");
+  const resetAddTeacherFormButton = document.querySelector(
+    "[data-reset-add-teacher-form]",
+  );
+  const teacherMappingsContainer = document.querySelector(
+    "[data-teacher-mappings-container]",
+  );
+  const teacherMappingRowTemplate = document.querySelector(
+    "[data-teacher-mapping-row-template]",
+  );
+  const editTeacherFormPanel = document.querySelector(
+    "[data-edit-teacher-form-panel]",
+  );
+  const editTeacherForm = document.querySelector("[data-edit-teacher-form]");
+  const editTeacherList = document.querySelector("[data-edit-teacher-list]");
+  const addEditMappingRowButton = document.querySelector(
+    "[data-add-edit-mapping-row]",
+  );
+  const resetEditTeacherFormButton = document.querySelector(
+    "[data-reset-edit-teacher-form]",
+  );
+  const editTeacherMappingsContainer = document.querySelector(
+    "[data-edit-teacher-mappings-container]",
+  );
+  const editTeacherMappingRowTemplate = document.querySelector(
+    "[data-edit-teacher-mapping-row-template]",
+  );
+  const confirmEditTeacherButton = document.querySelector(
+    "[data-confirm-edit-teacher]",
+  );
+  const submitAddTeacherButton = document.querySelector(
+    "[data-submit-add-teacher]",
+  );
+
+  const semesterOptionsByYear = {
+    FY: ["Sem 1", "Sem 2"],
+    SY: ["Sem 3", "Sem 4"],
+    TY: ["Sem 5", "Sem 6"],
+  };
+
+  let teacherFormStreams = [];
+  let selectedTeacherForEdit = null;
+
+  function showTeacherListTab() {
+    if (teachersListTab) teachersListTab.style.display = "block";
+    if (addTeacherTab) addTeacherTab.style.display = "none";
+    if (editTeacherTab) editTeacherTab.style.display = "none";
+  }
+
+  function showAddTeacherTab() {
+    if (teachersListTab) teachersListTab.style.display = "none";
+    if (addTeacherTab) addTeacherTab.style.display = "block";
+    if (editTeacherTab) editTeacherTab.style.display = "none";
+  }
+
+  function showEditTeacherTab() {
+    if (teachersListTab) teachersListTab.style.display = "none";
+    if (addTeacherTab) addTeacherTab.style.display = "none";
+    if (editTeacherTab) editTeacherTab.style.display = "block";
+  }
+
+  function normalizeCommonDivision(value) {
+    const normalized = [...new Set(
+      (value || "")
+        .split(",")
+        .map((part) => part.trim().toUpperCase())
+        .filter(Boolean),
+    )];
+    return normalized.join(",");
+  }
+
+  function populateSemestersForMapping(select, year) {
+    if (!select) return;
+    select.innerHTML = '<option value="">Select semester...</option>';
+
+    const options = semesterOptionsByYear[year] || [];
+    options.forEach((semester) => {
+      const option = document.createElement("option");
+      option.value = semester;
+      option.textContent = semester;
+      select.appendChild(option);
+    });
+    select.disabled = options.length === 0;
+  }
+
+  function populateStreamOptionsForMapping(select) {
+    if (!select) return;
+    select.innerHTML = '<option value="">Select stream...</option>';
+
+    teacherFormStreams.forEach((stream) => {
+      const option = document.createElement("option");
+      option.value = stream;
+      option.textContent = stream;
+      select.appendChild(option);
+    });
+  }
+
+  function collectMappingsFromContainer(container) {
+    return Array.from(
+      container?.querySelectorAll("[data-remove-mapping-row]") || [],
+    )
+      .map((removeButton) => removeButton.closest(".card"))
+      .map((row) => {
+        const subject = row?.querySelector("[data-mapping-subject]")?.value?.trim();
+        const year = row?.querySelector("[data-mapping-year]")?.value?.trim();
+        const semester = row?.querySelector("[data-mapping-semester]")?.value?.trim();
+        const stream = row?.querySelector("[data-mapping-stream]")?.value?.trim();
+        return { subject, year, semester, stream };
+      })
+      .filter((mapping) =>
+        mapping.subject && mapping.year && mapping.semester && mapping.stream,
+      );
+  }
+
+  function createTeacherMappingRow(prefill = {}) {
+    if (!teacherMappingRowTemplate || !teacherMappingsContainer) return;
+    const rowFragment = teacherMappingRowTemplate.content.cloneNode(true);
+    const rowElement = rowFragment.firstElementChild;
+
+    const subjectInput = rowElement.querySelector("[data-mapping-subject]");
+    const yearSelect = rowElement.querySelector("[data-mapping-year]");
+    const semesterSelect = rowElement.querySelector("[data-mapping-semester]");
+    const streamSelect = rowElement.querySelector("[data-mapping-stream]");
+    const removeButton = rowElement.querySelector("[data-remove-mapping-row]");
+
+    populateStreamOptionsForMapping(streamSelect);
+
+    if (prefill.subject && subjectInput) subjectInput.value = prefill.subject;
+    if (prefill.year && yearSelect) {
+      yearSelect.value = prefill.year;
+      populateSemestersForMapping(semesterSelect, prefill.year);
+    }
+    if (prefill.semester && semesterSelect) semesterSelect.value = prefill.semester;
+    if (prefill.stream && streamSelect) streamSelect.value = prefill.stream;
+
+    yearSelect?.addEventListener("change", () => {
+      populateSemestersForMapping(semesterSelect, yearSelect.value);
+    });
+
+    removeButton?.addEventListener("click", () => {
+      rowElement.remove();
+      if (!teacherMappingsContainer.children.length) {
+        createTeacherMappingRow();
+      }
+    });
+
+    teacherMappingsContainer.appendChild(rowElement);
+  }
+
+  function createEditTeacherMappingRow(prefill = {}) {
+    if (!editTeacherMappingRowTemplate || !editTeacherMappingsContainer) return;
+    const rowFragment = editTeacherMappingRowTemplate.content.cloneNode(true);
+    const rowElement = rowFragment.firstElementChild;
+
+    const subjectInput = rowElement.querySelector("[data-mapping-subject]");
+    const yearSelect = rowElement.querySelector("[data-mapping-year]");
+    const semesterSelect = rowElement.querySelector("[data-mapping-semester]");
+    const streamSelect = rowElement.querySelector("[data-mapping-stream]");
+    const removeButton = rowElement.querySelector("[data-remove-mapping-row]");
+
+    populateStreamOptionsForMapping(streamSelect);
+
+    if (prefill.subject && subjectInput) subjectInput.value = prefill.subject;
+    if (prefill.year && yearSelect) {
+      yearSelect.value = prefill.year;
+      populateSemestersForMapping(semesterSelect, prefill.year);
+    }
+    if (prefill.semester && semesterSelect) semesterSelect.value = prefill.semester;
+    if (prefill.stream && streamSelect) streamSelect.value = prefill.stream;
+
+    yearSelect?.addEventListener("change", () => {
+      populateSemestersForMapping(semesterSelect, yearSelect.value);
+    });
+
+    removeButton?.addEventListener("click", () => {
+      rowElement.remove();
+      if (!editTeacherMappingsContainer.children.length) {
+        createEditTeacherMappingRow();
+      }
+    });
+
+    editTeacherMappingsContainer.appendChild(rowElement);
+  }
+
+  function resetAddTeacherForm() {
+    addTeacherForm?.reset();
+    if (teacherMappingsContainer) {
+      teacherMappingsContainer.innerHTML = "";
+      createTeacherMappingRow();
+    }
+  }
+
+  function resetEditTeacherFormUI() {
+    editTeacherForm?.reset();
+    if (editTeacherMappingsContainer) {
+      editTeacherMappingsContainer.innerHTML = "";
+    }
+    if (editTeacherFormPanel) {
+      editTeacherFormPanel.style.display = "none";
+    }
+    selectedTeacherForEdit = null;
+  }
+
+  function setSelectedTeacherInList(teacherId) {
+    const buttons = editTeacherList?.querySelectorAll("[data-edit-teacher-item]") || [];
+    buttons.forEach((button) => {
+      const isSelected = button.getAttribute("data-teacher-id") === teacherId;
+      button.style.borderColor = isSelected ? "#2980b9" : "rgba(0,0,0,0.1)";
+      button.style.background = isSelected ? "rgba(41,128,185,0.08)" : "#fff";
+    });
+  }
+
+  async function loadTeacherFormStreams() {
+    try {
+      const data = await apiFetch("/api/admin/student-streams");
+      teacherFormStreams = Array.isArray(data?.streams) ? data.streams : [];
+    } catch (error) {
+      teacherFormStreams = [];
+    }
+  }
+
+  async function loadTeachersForEditList() {
+    if (!editTeacherList) return;
+
+    editTeacherList.innerHTML = '<p class="tagline">Loading teachers...</p>';
+    try {
+      const data = await apiFetch("/api/admin/teachers-info");
+      const teachers = Array.isArray(data?.teachers) ? data.teachers : [];
+
+      if (!teachers.length) {
+        editTeacherList.innerHTML = '<p class="tagline">No teachers found</p>';
+        return;
+      }
+
+      editTeacherList.innerHTML = teachers
+        .map(
+          (teacher) => `
+            <button
+              type="button"
+              class="btn ghost"
+              data-edit-teacher-item
+              data-teacher-id="${teacher.teacher_id}"
+              style="text-align: left; justify-content: flex-start; border-color: rgba(0,0,0,0.1); background: #fff; width: 100%"
+            >
+              <span style="display: inline-flex; flex-direction: column; align-items: flex-start">
+                <strong>${teacher.teacher_id || "N/A"}</strong>
+                <small>${teacher.teacher_name || "N/A"}</small>
+              </span>
+            </button>
+          `,
+        )
+        .join("");
+
+      editTeacherList
+        .querySelectorAll("[data-edit-teacher-item]")
+        .forEach((button) => {
+          button.addEventListener("click", () => {
+            const teacherId = button.getAttribute("data-teacher-id");
+            if (teacherId) {
+              loadTeacherForEdit(teacherId);
+            }
+          });
+        });
+
+      if (selectedTeacherForEdit) {
+        setSelectedTeacherInList(selectedTeacherForEdit);
+      }
+    } catch (error) {
+      editTeacherList.innerHTML = `<p class="tagline">Error: ${error.message}</p>`;
+    }
+  }
+
+  async function loadTeacherForEdit(teacherId) {
+    try {
+      const data = await apiFetch(
+        `/api/admin/teachers/${encodeURIComponent(teacherId)}/edit`,
+      );
+      const teacher = data?.teacher;
+
+      if (!teacher) {
+        throw new Error("Teacher details not found");
+      }
+
+      selectedTeacherForEdit = teacher.teacherId;
+      setSelectedTeacherInList(selectedTeacherForEdit);
+
+      const editTeacherIdInput = document.querySelector("#editTeacherId");
+      const editTeacherNameInput = document.querySelector("#editTeacherName");
+      const editTeacherDivisionsInput = document.querySelector(
+        "#editTeacherDivisions",
+      );
+
+      if (editTeacherIdInput) editTeacherIdInput.value = teacher.teacherId || "";
+      if (editTeacherNameInput) editTeacherNameInput.value = teacher.teacherName || "";
+      if (editTeacherDivisionsInput) {
+        editTeacherDivisionsInput.value = teacher.division || "";
+      }
+
+      if (editTeacherMappingsContainer) {
+        editTeacherMappingsContainer.innerHTML = "";
+        const assignments = Array.isArray(teacher.assignments)
+          ? teacher.assignments
+          : [];
+
+        if (assignments.length) {
+          assignments.forEach((assignment) => {
+            createEditTeacherMappingRow({
+              subject: assignment.subject,
+              year: assignment.year,
+              semester: assignment.semester,
+              stream: assignment.stream,
+            });
+          });
+        } else {
+          createEditTeacherMappingRow();
+        }
+      }
+
+      if (editTeacherFormPanel) {
+        editTeacherFormPanel.style.display = "block";
+      }
+    } catch (error) {
+      showToast({
+        title: "Unable to load teacher",
+        message: error.message,
+        type: "error",
+      });
+    }
+  }
 
   async function loadTeachersInfo() {
     if (!teachersInfoBody) return;
 
-    teachersInfoBody.innerHTML = '<tr><td colspan="8">Loading...</td></tr>';
+    teachersInfoBody.innerHTML = '<tr><td colspan="9">Loading...</td></tr>';
 
     try {
       const data = await apiFetch("/api/admin/teachers-info");
 
       if (!data.teachers || data.teachers.length === 0) {
         teachersInfoBody.innerHTML =
-          '<tr><td colspan="8">No teachers found</td></tr>';
+          '<tr><td colspan="9">No teachers found</td></tr>';
         return;
       }
 
       teachersInfoBody.innerHTML = data.teachers
         .map(
-          (teacher) => `
+          (teacher) => {
+            const status =
+              String(teacher.status || "Active").toLowerCase() === "inactive"
+                ? "Inactive"
+                : "Active";
+            const statusButtonStyle =
+              status === "Active"
+                ? "background: #eafaf1; color: #1e8449; border: 1px solid #58d68d;"
+                : "background: #fdecea; color: #c0392b; border: 1px solid #f1948a;";
+
+            return `
       <tr>
         <td>${teacher.teacher_id || "N/A"}</td>
         <td>${teacher.teacher_name || "N/A"}</td>
@@ -1548,13 +1906,28 @@ window.addEventListener("DOMContentLoaded", () => {
         <td>${teacher.semester || "N/A"}</td>
         <td>${teacher.division || "N/A"}</td>
         <td>${teacher.student_count || 0}</td>
+        <td>
+          <button
+            type="button"
+            class="btn ghost"
+            data-toggle-teacher-status
+            data-teacher-id="${teacher.teacher_id || ""}"
+            data-status="${status}"
+            style="padding: 0.3rem 0.75rem; font-size: 0.82rem; min-width: 95px; ${statusButtonStyle}"
+          >
+            ${status}
+          </button>
+        </td>
       </tr>
-    `,
+    `;
+          },
         )
         .join("");
+
+      applyTeachersInfoSearch();
     } catch (error) {
       teachersInfoBody.innerHTML =
-        '<tr><td colspan="8">Error loading teachers information</td></tr>';
+        '<tr><td colspan="9">Error loading teachers information</td></tr>';
       showToast({
         title: "Unable to load teachers",
         message: error.message,
@@ -1563,15 +1936,280 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  teachersInfoBody?.addEventListener("click", async (event) => {
+    const statusButton = event.target.closest("[data-toggle-teacher-status]");
+    if (!statusButton) return;
+
+    const teacherId = statusButton.getAttribute("data-teacher-id");
+    const currentStatus = statusButton.getAttribute("data-status") || "Active";
+    const nextStatus = currentStatus === "Active" ? "Inactive" : "Active";
+
+    if (!teacherId) return;
+
+    toggleLoading(statusButton, true);
+    try {
+      const response = await apiFetch(
+        `/api/admin/teachers/${encodeURIComponent(teacherId)}/status`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      );
+
+      showToast({
+        title: "Teacher status updated",
+        message: response.message || `${teacherId} is now ${nextStatus}`,
+        type: "success",
+      });
+
+      await loadTeachersInfo();
+      loadStats().catch(() => { });
+    } catch (error) {
+      showToast({
+        title: "Unable to update status",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(statusButton, false);
+    }
+  });
+
   refreshTeachersButton?.addEventListener("click", loadTeachersInfo);
+  teacherInfoSearchInput?.addEventListener("input", applyTeachersInfoSearch);
+  openAddTeacherTabButton?.addEventListener("click", async () => {
+    if (!teacherFormStreams.length) {
+      await loadTeacherFormStreams();
+      const streamSelects = teacherMappingsContainer?.querySelectorAll(
+        "[data-mapping-stream]",
+      );
+      streamSelects?.forEach((select) => populateStreamOptionsForMapping(select));
+    }
+    showAddTeacherTab();
+  });
+  openEditTeacherTabButton?.addEventListener("click", async () => {
+    if (!teacherFormStreams.length) {
+      await loadTeacherFormStreams();
+    }
+    resetEditTeacherFormUI();
+    showEditTeacherTab();
+    await loadTeachersForEditList();
+  });
+  openTeachersListTabButton?.addEventListener("click", showTeacherListTab);
+  closeEditTeacherTabButton?.addEventListener("click", showTeacherListTab);
+
+  addMappingRowButton?.addEventListener("click", () => createTeacherMappingRow());
+  addEditMappingRowButton?.addEventListener("click", () =>
+    createEditTeacherMappingRow(),
+  );
+  resetAddTeacherFormButton?.addEventListener("click", resetAddTeacherForm);
+  resetEditTeacherFormButton?.addEventListener("click", async () => {
+    if (!selectedTeacherForEdit) {
+      resetEditTeacherFormUI();
+      return;
+    }
+    await loadTeacherForEdit(selectedTeacherForEdit);
+  });
+
+  addTeacherForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const teacherId = document.querySelector("#addTeacherId")?.value?.trim();
+    const teacherName = document.querySelector("#addTeacherName")?.value?.trim();
+    const commonDivision = normalizeCommonDivision(
+      document.querySelector("#addTeacherDivisions")?.value,
+    );
+
+    const mappings = collectMappingsFromContainer(teacherMappingsContainer);
+
+    if (!teacherId || !teacherName || !commonDivision) {
+      showToast({
+        title: "Required fields missing",
+        message: "Teacher ID, name, and common divisions are required.",
+        type: "warning",
+      });
+      return;
+    }
+
+    if (!mappings.length) {
+      showToast({
+        title: "Add at least one mapping",
+        message: "Each mapping requires Subject, Year, Semester, and Stream.",
+        type: "warning",
+      });
+      return;
+    }
+
+    toggleLoading(submitAddTeacherButton, true);
+    try {
+      const response = await apiFetch("/api/admin/teachers/add", {
+        method: "POST",
+        body: JSON.stringify({
+          teacherId,
+          teacherName,
+          division: commonDivision,
+          mappings,
+        }),
+      });
+
+      showToast({
+        title: "Teacher added",
+        message: response.message || "Teacher details saved successfully.",
+        type: "success",
+      });
+
+      resetAddTeacherForm();
+      await loadTeachersInfo();
+      showTeacherListTab();
+      loadStats().catch(() => { });
+    } catch (error) {
+      showToast({
+        title: "Unable to add teacher",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(submitAddTeacherButton, false);
+    }
+  });
+
+  editTeacherForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!selectedTeacherForEdit) {
+      showToast({
+        title: "Select teacher",
+        message: "Please select a teacher from the list first.",
+        type: "warning",
+      });
+      return;
+    }
+
+    const teacherName = document.querySelector("#editTeacherName")?.value?.trim();
+    const commonDivision = normalizeCommonDivision(
+      document.querySelector("#editTeacherDivisions")?.value,
+    );
+    const mappings = collectMappingsFromContainer(editTeacherMappingsContainer);
+
+    if (!teacherName || !commonDivision) {
+      showToast({
+        title: "Required fields missing",
+        message: "Teacher name and common divisions are required.",
+        type: "warning",
+      });
+      return;
+    }
+
+    if (!mappings.length) {
+      showToast({
+        title: "Add at least one mapping",
+        message: "Each mapping requires Subject, Year, Semester, and Stream.",
+        type: "warning",
+      });
+      return;
+    }
+
+    toggleLoading(confirmEditTeacherButton, true);
+    try {
+      const response = await apiFetch(
+        `/api/admin/teachers/${encodeURIComponent(selectedTeacherForEdit)}/update`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            teacherName,
+            division: commonDivision,
+            mappings,
+          }),
+        },
+      );
+
+      showToast({
+        title: "Teacher updated",
+        message: response.message || "Teacher information updated successfully.",
+        type: "success",
+      });
+
+      await loadTeachersInfo();
+      await loadTeachersForEditList();
+      await loadTeacherForEdit(selectedTeacherForEdit);
+      loadStats().catch(() => { });
+    } catch (error) {
+      showToast({
+        title: "Unable to update teacher",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(confirmEditTeacherButton, false);
+    }
+  });
+
+  createTeacherMappingRow();
 
   // Students Information Section
+  const openAddStudentTabButton = document.querySelector(
+    "[data-open-add-student-tab]",
+  );
+  const openEditStudentTabButton = document.querySelector(
+    "[data-open-edit-student-tab]",
+  );
+  const openStudentBulkStatusTabButton = document.querySelector(
+    "[data-open-student-bulk-status-tab]",
+  );
+  const openStudentsListTabButton = document.querySelector(
+    "[data-open-students-list-tab]",
+  );
+  const closeEditStudentTabButton = document.querySelector(
+    "[data-close-edit-student-tab]",
+  );
+  const closeStudentBulkStatusTabButton = document.querySelector(
+    "[data-close-student-bulk-status-tab]",
+  );
+  const refreshStudentsButton = document.querySelector("[data-refresh-students]");
+  const studentsListTab = document.querySelector("[data-students-list-tab]");
+  const addStudentTab = document.querySelector("[data-add-student-tab]");
+  const editStudentTab = document.querySelector("[data-edit-student-tab]");
+  const studentBulkStatusTab = document.querySelector(
+    "[data-student-bulk-status-tab]",
+  );
+
+  const addStudentForm = document.querySelector("[data-add-student-form]");
+  const submitAddStudentButton = document.querySelector("[data-submit-add-student]");
+  const resetAddStudentFormButton = document.querySelector(
+    "[data-reset-add-student-form]",
+  );
+
+  const editStudentList = document.querySelector("[data-edit-student-list]");
+  const editStudentFormPanel = document.querySelector(
+    "[data-edit-student-form-panel]",
+  );
+  const editStudentForm = document.querySelector("[data-edit-student-form]");
+  const confirmEditStudentButton = document.querySelector(
+    "[data-confirm-edit-student]",
+  );
+  const resetEditStudentFormButton = document.querySelector(
+    "[data-reset-edit-student-form]",
+  );
+
+  const bulkStudentYearSelect = document.querySelector("#bulkStudentYear");
+  const bulkStudentStreamSelect = document.querySelector("#bulkStudentStream");
+  const bulkStudentDivisionSelect = document.querySelector("#bulkStudentDivision");
+  const studentBulkStatusForm = document.querySelector(
+    "[data-student-bulk-status-form]",
+  );
+  const applyBulkStudentStatusButton = document.querySelector(
+    "[data-apply-bulk-student-status]",
+  );
+
   const filterYearSelect = document.querySelector("#filterYear");
   const filterStreamSelect = document.querySelector("#filterStream");
   const filterSemesterSelect = document.querySelector("#filterSemester");
   const filterDivisionSelect = document.querySelector("#filterDivision");
   const loadStudentsButton = document.querySelector("[data-load-students]");
   const studentsInfoBody = document.querySelector("[data-students-info-body]");
+  const studentInfoSearchInput = document.querySelector(
+    "[data-student-info-search-input]",
+  );
   const studentsInfoTable = document.querySelector(
     "[data-students-info-table]",
   );
@@ -1586,6 +2224,314 @@ window.addEventListener("DOMContentLoaded", () => {
   );
   const subjectsList = document.querySelector("[data-subjects-list]");
   const teachersList = document.querySelector("[data-teachers-list]");
+
+  let selectedStudentForEdit = "";
+  let cachedStudentsForEdit = [];
+
+  function normalizeStudentStatus(statusValue) {
+    return String(statusValue || "").toLowerCase() === "inactive"
+      ? "Inactive"
+      : "Active";
+  }
+
+  function doesRowMatchQuery(row, query, divisionCellIndex) {
+    const normalizedQuery = String(query || "").trim().toLowerCase();
+    if (!normalizedQuery) return true;
+
+    const cellValues = Array.from(row.querySelectorAll("td")).map((cell) =>
+      String(cell.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase(),
+    );
+
+    // Division can be a single letter; use exact division matching for one-letter alphabetical queries.
+    if (/^[a-z]$/i.test(normalizedQuery)) {
+      const divisionValue = cellValues[divisionCellIndex] || "";
+      return divisionValue === normalizedQuery;
+    }
+
+    return cellValues.some((value) => value.includes(normalizedQuery));
+  }
+
+  function applyTableSearch({
+    tbody,
+    query,
+    divisionCellIndex,
+    noMatchMessage,
+    noMatchColspan,
+  }) {
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    const dataRows = rows.filter((row) => row.querySelectorAll("td").length > 1);
+    const existingNoMatchRow = tbody.querySelector("[data-inline-search-empty]");
+
+    if (!dataRows.length) {
+      existingNoMatchRow?.remove();
+      return;
+    }
+
+    let matchedCount = 0;
+
+    dataRows.forEach((row) => {
+      const matched = doesRowMatchQuery(row, query, divisionCellIndex);
+      row.style.display = matched ? "" : "none";
+      row.classList.toggle(
+        "inline-search-match",
+        matched && !!String(query || "").trim(),
+      );
+      if (matched) matchedCount += 1;
+    });
+
+    if (!String(query || "").trim() || matchedCount > 0) {
+      existingNoMatchRow?.remove();
+      return;
+    }
+
+    if (!existingNoMatchRow) {
+      tbody.insertAdjacentHTML(
+        "beforeend",
+        `<tr data-inline-search-empty><td colspan="${noMatchColspan}">${noMatchMessage}</td></tr>`,
+      );
+    }
+  }
+
+  function applyTeachersInfoSearch() {
+    applyTableSearch({
+      tbody: teachersInfoBody,
+      query: teacherInfoSearchInput?.value || "",
+      divisionCellIndex: 6,
+      noMatchMessage: "No matching teacher records found.",
+      noMatchColspan: 9,
+    });
+  }
+
+  function applyStudentsInfoSearch() {
+    applyTableSearch({
+      tbody: studentsInfoBody,
+      query: studentInfoSearchInput?.value || "",
+      divisionCellIndex: 5,
+      noMatchMessage: "No matching student records found.",
+      noMatchColspan: 7,
+    });
+  }
+
+  function hideStudentTabs() {
+    if (studentsListTab) studentsListTab.style.display = "none";
+    if (addStudentTab) addStudentTab.style.display = "none";
+    if (editStudentTab) editStudentTab.style.display = "none";
+    if (studentBulkStatusTab) studentBulkStatusTab.style.display = "none";
+  }
+
+  function showStudentsListTab() {
+    hideStudentTabs();
+    if (studentsListTab) studentsListTab.style.display = "block";
+  }
+
+  function showAddStudentTab() {
+    hideStudentTabs();
+    if (addStudentTab) addStudentTab.style.display = "block";
+  }
+
+  function showEditStudentTab() {
+    hideStudentTabs();
+    if (editStudentTab) editStudentTab.style.display = "block";
+  }
+
+  function showStudentBulkStatusTab() {
+    hideStudentTabs();
+    if (studentBulkStatusTab) studentBulkStatusTab.style.display = "block";
+  }
+
+  function resetAddStudentForm() {
+    addStudentForm?.reset();
+  }
+
+  function resetEditStudentFormUI() {
+    selectedStudentForEdit = "";
+    if (editStudentFormPanel) {
+      editStudentFormPanel.style.display = "none";
+    }
+    if (editStudentForm) {
+      editStudentForm.reset();
+    }
+    if (!editStudentList) return;
+    const buttons = editStudentList.querySelectorAll("[data-edit-student-id]");
+    buttons.forEach((btn) => {
+      btn.style.background = "";
+      btn.style.color = "";
+      btn.style.borderColor = "";
+    });
+  }
+
+  function setSelectedStudentInList(studentId) {
+    if (!editStudentList) return;
+    const buttons = editStudentList.querySelectorAll("[data-edit-student-id]");
+    buttons.forEach((btn) => {
+      const isActive = btn.getAttribute("data-edit-student-id") === studentId;
+      btn.style.background = isActive ? "#2563eb" : "";
+      btn.style.color = isActive ? "#ffffff" : "";
+      btn.style.borderColor = isActive ? "#1d4ed8" : "";
+    });
+  }
+
+  async function loadStudentsForEditList() {
+    if (!editStudentList) return;
+    editStudentList.innerHTML = '<p class="tagline">Loading students...</p>';
+
+    try {
+      const { allStudents } = await apiFetch("/api/admin/all-students");
+      cachedStudentsForEdit = Array.isArray(allStudents)
+        ? [...allStudents].sort((a, b) =>
+          String(a.student_id || "").localeCompare(String(b.student_id || "")),
+        )
+        : [];
+
+      if (!cachedStudentsForEdit.length) {
+        editStudentList.innerHTML = '<p class="tagline">No students found.</p>';
+        return;
+      }
+
+      editStudentList.innerHTML = cachedStudentsForEdit
+        .map((student) => {
+          const status = normalizeStudentStatus(student.status);
+          const statusColor =
+            status === "Active" ? "color:#1e8449;" : "color:#c0392b;";
+          return `
+            <button
+              type="button"
+              class="btn secondary"
+              data-edit-student-id="${student.student_id || ""}"
+              style="justify-content: flex-start; text-align: left; width: 100%;"
+            >
+              <span style="display:block;">
+                <strong>${student.student_id || "N/A"}</strong> - ${student.student_name || "N/A"}
+                <span style="display:block; font-size:0.8rem; ${statusColor}">${status}</span>
+              </span>
+            </button>
+          `;
+        })
+        .join("");
+    } catch (error) {
+      editStudentList.innerHTML = '<p class="tagline">Unable to load students.</p>';
+      showToast({
+        title: "Unable to load students",
+        message: error.message,
+        type: "error",
+      });
+    }
+  }
+
+  async function loadStudentForEdit(studentId) {
+    if (!studentId) return;
+
+    try {
+      const { student } = await apiFetch(
+        `/api/admin/students/${encodeURIComponent(studentId)}/edit`,
+      );
+
+      selectedStudentForEdit = student.studentId;
+      setSelectedStudentInList(selectedStudentForEdit);
+
+      const editStudentIdInput = document.querySelector("#editStudentId");
+      const editStudentNameInput = document.querySelector("#editStudentName");
+      const editStudentRollNoInput = document.querySelector("#editStudentRollNo");
+      const editStudentYearSelect = document.querySelector("#editStudentYear");
+      const editStudentStreamInput = document.querySelector("#editStudentStream");
+      const editStudentDivisionInput = document.querySelector("#editStudentDivision");
+
+      if (editStudentIdInput) editStudentIdInput.value = student.studentId || "";
+      if (editStudentNameInput) editStudentNameInput.value = student.studentName || "";
+      if (editStudentRollNoInput) {
+        editStudentRollNoInput.value = student.rollNo ?? "";
+      }
+      if (editStudentYearSelect) editStudentYearSelect.value = student.year || "";
+      if (editStudentStreamInput) editStudentStreamInput.value = student.stream || "";
+      if (editStudentDivisionInput) {
+        editStudentDivisionInput.value = student.division || "";
+      }
+
+      if (editStudentFormPanel) {
+        editStudentFormPanel.style.display = "block";
+      }
+    } catch (error) {
+      showToast({
+        title: "Unable to load student",
+        message: error.message,
+        type: "error",
+      });
+    }
+  }
+
+  async function populateBulkStreamOptions(year) {
+    if (!bulkStudentStreamSelect || !year) return;
+
+    bulkStudentStreamSelect.innerHTML = '<option value="">Loading streams...</option>';
+    bulkStudentStreamSelect.disabled = true;
+
+    try {
+      const data = await apiFetch(
+        `/api/admin/streams-divisions?year=${encodeURIComponent(year)}`,
+      );
+      const streams = Array.isArray(data.streams) ? data.streams : [];
+
+      if (!streams.length) {
+        bulkStudentStreamSelect.innerHTML =
+          '<option value="">No streams found for year</option>';
+        return;
+      }
+
+      bulkStudentStreamSelect.innerHTML = streams
+        .map((stream) => `<option value="${stream}">${stream}</option>`)
+        .join("");
+      bulkStudentStreamSelect.disabled = false;
+
+      await populateBulkDivisionOptions(year, bulkStudentStreamSelect.value);
+    } catch (error) {
+      bulkStudentStreamSelect.innerHTML =
+        '<option value="">Unable to load streams</option>';
+      showToast({
+        title: "Unable to auto-fill streams",
+        message: error.message,
+        type: "error",
+      });
+    }
+  }
+
+  async function populateBulkDivisionOptions(year, stream) {
+    if (!bulkStudentDivisionSelect || !year || !stream) return;
+
+    bulkStudentDivisionSelect.innerHTML =
+      '<option value="">Loading divisions...</option>';
+    bulkStudentDivisionSelect.disabled = true;
+
+    try {
+      const data = await apiFetch(
+        `/api/admin/streams-divisions?year=${encodeURIComponent(year)}&stream=${encodeURIComponent(stream)}`,
+      );
+      const divisions = Array.isArray(data.divisions) ? data.divisions : [];
+
+      if (!divisions.length) {
+        bulkStudentDivisionSelect.innerHTML =
+          '<option value="">No divisions found for selection</option>';
+        return;
+      }
+
+      bulkStudentDivisionSelect.innerHTML = divisions
+        .map((division) => `<option value="${division}">${division}</option>`)
+        .join("");
+      bulkStudentDivisionSelect.disabled = false;
+    } catch (error) {
+      bulkStudentDivisionSelect.innerHTML =
+        '<option value="">Unable to load divisions</option>';
+      showToast({
+        title: "Unable to auto-fill divisions",
+        message: error.message,
+        type: "error",
+      });
+    }
+  }
 
   // Load streams from teacher_details_db
   async function loadStreamsFromTeachers() {
@@ -1773,77 +2719,73 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  async function loadStudentsInfo() {
+  async function loadStudentsInfo({ showExtras = true } = {}) {
     const year = filterYearSelect?.value;
     const stream = filterStreamSelect?.value;
     const semester = filterSemesterSelect?.value;
     const division = filterDivisionSelect?.value;
 
-    if (!stream || !year || !semester || !division) {
-      showToast({
-        title: "Selection required",
-        message: "Please select stream, year, semester, and division",
-        type: "warning",
-      });
-      return;
-    }
-
     if (!studentsInfoBody) return;
 
-    studentsInfoBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+    studentsInfoBody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
 
     try {
-      const data = await apiFetch(
-        `/api/admin/students-info?year=${encodeURIComponent(year)}&stream=${encodeURIComponent(stream)}&semester=${encodeURIComponent(semester)}&division=${encodeURIComponent(division)}`,
-      );
+      const params = new URLSearchParams();
+      if (year) params.set("year", year);
+      if (stream) params.set("stream", stream);
+      if (semester) params.set("semester", semester);
+      if (division) params.set("division", division);
+      const data = await apiFetch(`/api/admin/students-info?${params.toString()}`);
 
-      // Display subjects
-      if (subjectsList && data.subjects && data.subjects.length > 0) {
-        subjectsList.innerHTML = data.subjects
-          .map(
-            (subject) => `
-        <div style="padding: 0.5rem; background: #f5f5f5; border-radius: 4px;">
-          <strong>${subject}</strong>
-        </div>
-      `,
-          )
-          .join("");
-      } else if (subjectsList) {
-        subjectsList.innerHTML = '<p class="tagline">No subjects available</p>';
-      }
+      if (showExtras) {
+        // Display subjects
+        if (subjectsList && data.subjects && data.subjects.length > 0) {
+          subjectsList.innerHTML = data.subjects
+            .map(
+              (subject) => `
+          <div style="padding: 0.5rem; background: #f5f5f5; border-radius: 4px;">
+            <strong>${subject}</strong>
+          </div>
+        `,
+            )
+            .join("");
+        } else if (subjectsList) {
+          subjectsList.innerHTML = '<p class="tagline">No subjects available</p>';
+        }
 
-      // Display teachers
-      if (teachersList && data.teachers && data.teachers.length > 0) {
-        teachersList.innerHTML = data.teachers
-          .map(
-            (teacher) => `
-        <div style="padding: 0.5rem; background: #f5f5f5; border-radius: 4px;">
-          <strong>${teacher.teacher_name}</strong> - ${teacher.subject}
-        </div>
-      `,
-          )
-          .join("");
-      } else if (teachersList) {
-        teachersList.innerHTML = '<p class="tagline">No teachers available</p>';
-      }
+        // Display teachers
+        if (teachersList && data.teachers && data.teachers.length > 0) {
+          teachersList.innerHTML = data.teachers
+            .map(
+              (teacher) => `
+          <div style="padding: 0.5rem; background: #f5f5f5; border-radius: 4px;">
+            <strong>${teacher.teacher_name}</strong> - ${teacher.subject}
+          </div>
+        `,
+            )
+            .join("");
+        } else if (teachersList) {
+          teachersList.innerHTML = '<p class="tagline">No teachers available</p>';
+        }
 
-      // Show subjects and teachers container
-      if (subjectsTeachersContainer) {
-        subjectsTeachersContainer.style.display = "grid";
-      }
+        // Show subjects and teachers container
+        if (subjectsTeachersContainer) {
+          subjectsTeachersContainer.style.display = "grid";
+        }
 
-      // Display student count
-      if (studentCountValue) {
-        studentCountValue.textContent = data.count || 0;
-      }
-      if (studentCountDisplay) {
-        studentCountDisplay.style.display = "block";
+        // Display student count
+        if (studentCountValue) {
+          studentCountValue.textContent = data.count || 0;
+        }
+        if (studentCountDisplay) {
+          studentCountDisplay.style.display = "block";
+        }
       }
 
       // Display students
       if (!data.students || data.students.length === 0) {
         studentsInfoBody.innerHTML =
-          '<tr><td colspan="6">No students found for this year, stream, and division</td></tr>';
+          '<tr><td colspan="7">No students found for this year, stream, and division</td></tr>';
         if (studentsInfoTable) {
           studentsInfoTable.style.display = "block";
         }
@@ -1870,26 +2812,44 @@ window.addEventListener("DOMContentLoaded", () => {
         <td>${student.year || "N/A"}</td>
         <td>${student.stream || "N/A"}</td>
         <td>${student.division || "N/A"}</td>
+        <td>
+          <button
+            type="button"
+            class="btn ghost"
+            data-toggle-student-status
+            data-student-id="${student.student_id || ""}"
+            data-status="${normalizeStudentStatus(student.status)}"
+            style="padding: 0.3rem 0.75rem; font-size: 0.82rem; min-width: 95px; ${normalizeStudentStatus(student.status) === "Active"
+              ? "background: #eafaf1; color: #1e8449; border: 1px solid #58d68d;"
+              : "background: #fdecea; color: #c0392b; border: 1px solid #f1948a;"
+            }"
+          >
+            ${normalizeStudentStatus(student.status)}
+          </button>
+        </td>
       </tr>
     `,
         )
         .join("");
 
+      applyStudentsInfoSearch();
+
       if (studentsInfoTable) {
         studentsInfoTable.style.display = "block";
       }
 
-      const semesterLabel = semester === "ALL" ? "All Semesters" : semester;
-      const divisionLabel = division === "ALL" ? "All Divisions" : division;
-
-      showToast({
-        title: "Students loaded",
-        message: `Found ${data.count} students in ${year} ${stream} - ${semesterLabel} - ${divisionLabel}`,
-        type: "success",
-      });
+      if (showExtras) {
+        const semesterLabel = semester === "ALL" ? "All Semesters" : semester;
+        const divisionLabel = division === "ALL" ? "All Divisions" : division;
+        showToast({
+          title: "Students loaded",
+          message: `Found ${data.count} students in ${year} ${stream} - ${semesterLabel} - ${divisionLabel}`,
+          type: "success",
+        });
+      }
     } catch (error) {
       studentsInfoBody.innerHTML =
-        '<tr><td colspan="6">Error loading students information</td></tr>';
+        '<tr><td colspan="7">Error loading students information</td></tr>';
       if (studentsInfoTable) {
         studentsInfoTable.style.display = "block";
       }
@@ -1900,6 +2860,281 @@ window.addEventListener("DOMContentLoaded", () => {
       });
     }
   }
+
+  studentsInfoBody?.addEventListener("click", async (event) => {
+    const statusButton = event.target.closest("[data-toggle-student-status]");
+    if (!statusButton) return;
+
+    const studentId = statusButton.getAttribute("data-student-id");
+    const currentStatus = normalizeStudentStatus(
+      statusButton.getAttribute("data-status"),
+    );
+    const nextStatus = currentStatus === "Active" ? "Inactive" : "Active";
+
+    if (!studentId) return;
+
+    toggleLoading(statusButton, true);
+    try {
+      const response = await apiFetch(
+        `/api/admin/students/${encodeURIComponent(studentId)}/status`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      );
+
+      showToast({
+        title: "Student status updated",
+        message: response.message || `${studentId} is now ${nextStatus}`,
+        type: "success",
+      });
+
+      await loadStudentsInfo();
+      loadStats().catch(() => { });
+    } catch (error) {
+      showToast({
+        title: "Unable to update student status",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(statusButton, false);
+    }
+  });
+
+  openAddStudentTabButton?.addEventListener("click", showAddStudentTab);
+  openEditStudentTabButton?.addEventListener("click", async () => {
+    resetEditStudentFormUI();
+    showEditStudentTab();
+    await loadStudentsForEditList();
+  });
+  openStudentBulkStatusTabButton?.addEventListener(
+    "click",
+    showStudentBulkStatusTab,
+  );
+  openStudentsListTabButton?.addEventListener("click", showStudentsListTab);
+  closeEditStudentTabButton?.addEventListener("click", showStudentsListTab);
+  closeStudentBulkStatusTabButton?.addEventListener(
+    "click",
+    showStudentsListTab,
+  );
+
+  resetAddStudentFormButton?.addEventListener("click", resetAddStudentForm);
+  resetEditStudentFormButton?.addEventListener("click", async () => {
+    if (!selectedStudentForEdit) {
+      resetEditStudentFormUI();
+      return;
+    }
+    await loadStudentForEdit(selectedStudentForEdit);
+  });
+
+  editStudentList?.addEventListener("click", async (event) => {
+    const target = event.target.closest("[data-edit-student-id]");
+    if (!target) return;
+    const studentId = target.getAttribute("data-edit-student-id");
+    await loadStudentForEdit(studentId);
+  });
+
+  addStudentForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const studentId = document.querySelector("#addStudentId")?.value?.trim();
+    const studentName = document.querySelector("#addStudentName")?.value?.trim();
+    const rollNoValue = document.querySelector("#addStudentRollNo")?.value?.trim();
+    const year = document.querySelector("#addStudentYear")?.value?.trim();
+    const stream = document.querySelector("#addStudentStream")?.value?.trim();
+    const division = document.querySelector("#addStudentDivision")?.value?.trim();
+
+    if (!studentId || !studentName || !rollNoValue || !year || !stream || !division) {
+      showToast({
+        title: "Required fields missing",
+        message: "Student ID, name, roll no, year, stream, and division are required.",
+        type: "warning",
+      });
+      return;
+    }
+
+    toggleLoading(submitAddStudentButton, true);
+    try {
+      const response = await apiFetch("/api/admin/students/add", {
+        method: "POST",
+        body: JSON.stringify({
+          studentId,
+          studentName,
+          rollNo: Number(rollNoValue),
+          year,
+          stream,
+          division,
+        }),
+      });
+
+      showToast({
+        title: "Student added",
+        message: response.message || "Student added successfully.",
+        type: "success",
+      });
+
+      resetAddStudentForm();
+      showStudentsListTab();
+      loadStats().catch(() => { });
+      await loadStudentsInfo().catch(() => { });
+    } catch (error) {
+      showToast({
+        title: "Unable to add student",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(submitAddStudentButton, false);
+    }
+  });
+
+  editStudentForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!selectedStudentForEdit) {
+      showToast({
+        title: "Select student",
+        message: "Please select a student from the list first.",
+        type: "warning",
+      });
+      return;
+    }
+
+    const studentName = document.querySelector("#editStudentName")?.value?.trim();
+    const rollNoValue = document.querySelector("#editStudentRollNo")?.value?.trim();
+    const year = document.querySelector("#editStudentYear")?.value?.trim();
+    const stream = document.querySelector("#editStudentStream")?.value?.trim();
+    const division = document.querySelector("#editStudentDivision")?.value?.trim();
+
+    if (!studentName || !rollNoValue || !year || !stream || !division) {
+      showToast({
+        title: "Required fields missing",
+        message: "Name, roll no, year, stream, and division are required.",
+        type: "warning",
+      });
+      return;
+    }
+
+    toggleLoading(confirmEditStudentButton, true);
+    try {
+      const response = await apiFetch(
+        `/api/admin/students/${encodeURIComponent(selectedStudentForEdit)}/update`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            studentName,
+            rollNo: Number(rollNoValue),
+            year,
+            stream,
+            division,
+          }),
+        },
+      );
+
+      showToast({
+        title: "Student updated",
+        message: response.message || "Student information updated successfully.",
+        type: "success",
+      });
+
+      await loadStudentsForEditList();
+      await loadStudentForEdit(selectedStudentForEdit);
+      await loadStudentsInfo().catch(() => { });
+      loadStats().catch(() => { });
+    } catch (error) {
+      showToast({
+        title: "Unable to update student",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(confirmEditStudentButton, false);
+    }
+  });
+
+  bulkStudentYearSelect?.addEventListener("change", async () => {
+    const year = bulkStudentYearSelect.value;
+
+    if (!year) {
+      if (bulkStudentStreamSelect) {
+        bulkStudentStreamSelect.innerHTML = '<option value="ALL">All Streams</option>';
+        bulkStudentStreamSelect.disabled = true;
+      }
+      if (bulkStudentDivisionSelect) {
+        bulkStudentDivisionSelect.innerHTML = '<option value="ALL">All Divisions</option>';
+        bulkStudentDivisionSelect.disabled = true;
+      }
+      return;
+    }
+
+    await populateBulkStreamOptions(year);
+  });
+
+  bulkStudentStreamSelect?.addEventListener("change", async () => {
+    const year = bulkStudentYearSelect?.value;
+    const stream = bulkStudentStreamSelect.value;
+    if (!year || !stream) return;
+    await populateBulkDivisionOptions(year, stream);
+  });
+
+  studentBulkStatusForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const year = bulkStudentYearSelect?.value;
+    const stream = bulkStudentStreamSelect?.value;
+    const division = bulkStudentDivisionSelect?.value;
+    const status = document.querySelector("#bulkStudentStatus")?.value;
+
+    if (!year || !stream || !division || !status) {
+      showToast({
+        title: "Required fields missing",
+        message: "Year, stream, division, and status are required.",
+        type: "warning",
+      });
+      return;
+    }
+
+    toggleLoading(applyBulkStudentStatusButton, true);
+    try {
+      const response = await apiFetch("/api/admin/students/status/bulk", {
+        method: "PUT",
+        body: JSON.stringify({ year, stream, division, status }),
+      });
+
+      showToast({
+        title: "Bulk status updated",
+        message:
+          response.message ||
+          `Updated ${response.updated || 0} student record(s) to ${status}.`,
+        type: "success",
+      });
+
+      showStudentsListTab();
+      await loadStudentsInfo().catch(() => { });
+      loadStats().catch(() => { });
+    } catch (error) {
+      showToast({
+        title: "Unable to update student status",
+        message: error.message,
+        type: "error",
+      });
+    } finally {
+      toggleLoading(applyBulkStudentStatusButton, false);
+    }
+  });
+
+  refreshStudentsButton?.addEventListener("click", async () => {
+    await loadStreamsFromTeachers();
+    await loadStudentsInfo().catch(() => { });
+  });
+  studentInfoSearchInput?.addEventListener("input", async () => {
+    if (studentsInfoTable && studentsInfoTable.style.display === "none") {
+      await loadStudentsInfo({ showExtras: false });
+    } else {
+      applyStudentsInfoSearch();
+    }
+  });
 
   loadStudentsButton?.addEventListener("click", loadStudentsInfo);
 
@@ -2061,6 +3296,8 @@ window.addEventListener("DOMContentLoaded", () => {
         await showStudentsList();
       } else if (statType === "teachers") {
         await showTeachersList();
+      } else if (statType === "current-sessions") {
+        await showCurrentSessionsList();
       } else if (statType === "streams") {
         await showStreamsList();
       } else if (statType === "subjects") {
@@ -2151,6 +3388,44 @@ window.addEventListener("DOMContentLoaded", () => {
       tbody.innerHTML = rows;
     } catch (error) {
       tbody.innerHTML = `<tr><td colspan="7">Error: ${error.message}</td></tr>`;
+    }
+  }
+
+  async function showCurrentSessionsList() {
+    const modal = document.querySelector("[data-current-sessions-list-modal]");
+    const tbody = document.querySelector("[data-current-sessions-list-body]");
+
+    if (!modal || !tbody) return;
+
+    modal.showModal();
+    tbody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+
+    try {
+      const { currentSessions } = await apiFetch("/api/admin/current-sessions");
+
+      if (!currentSessions || currentSessions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">No ongoing sessions found</td></tr>';
+        return;
+      }
+
+      const rows = currentSessions
+        .map(
+          (s) => `
+        <tr>
+          <td>${s.subject || "—"}</td>
+          <td><strong>${s.teacher_name || s.teacher_id || "—"}</strong></td>
+          <td>${s.year || "—"}</td>
+          <td>${s.stream || "—"}</td>
+          <td>${s.division || "—"}</td>
+          <td>${formatDateTime(s.started_at) || "—"}</td>
+        </tr>
+      `,
+        )
+        .join("");
+
+      tbody.innerHTML = rows;
+    } catch (error) {
+      tbody.innerHTML = `<tr><td colspan="6">Error: ${error.message}</td></tr>`;
     }
   }
 
@@ -2277,6 +3552,12 @@ window.addEventListener("DOMContentLoaded", () => {
     .querySelector("[data-close-teachers-list]")
     ?.addEventListener("click", () => {
       document.querySelector("[data-teachers-list-modal]")?.close();
+    });
+
+  document
+    .querySelector("[data-close-current-sessions-list]")
+    ?.addEventListener("click", () => {
+      document.querySelector("[data-current-sessions-list-modal]")?.close();
     });
 
   document

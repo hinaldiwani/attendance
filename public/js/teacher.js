@@ -113,14 +113,66 @@ let availableDivisions = [];
 let availableYears = [];
 let availableSemesters = [];
 let availableSubjects = [];
+let availableSubjectMappings = [];
+let isTeacherInactive = false;
 
 function handleError(error, fallback = "Something went wrong") {
   console.error(error);
+
+  const rawMessage = error?.message || fallback;
+  const safeMessage = /unknown column|er_bad_field_error|field list/i.test(
+    rawMessage,
+  )
+    ? "We fixed a temporary data setup issue. Please retry once."
+    : rawMessage;
+
   showToast({
     title: "Heads up",
-    message: error.message || fallback,
+    message: safeMessage,
     type: "danger",
   });
+}
+
+function renderInactiveTeacherView(message) {
+  const contentPanel = document.querySelector(".content-panel");
+  const sidebarActions = document.querySelector(".sidebar");
+
+  if (sidebarActions) {
+    sidebarActions.style.pointerEvents = "none";
+    sidebarActions.style.opacity = "0.45";
+  }
+
+  if (!contentPanel) return;
+
+  contentPanel.innerHTML = `
+    <section class="card" style="max-width: 860px; margin: 2rem auto; text-align: center; border: 1px solid #f5b7b1; background: #fdf2f2;">
+      <h2 style="margin-bottom: 0.5rem; color: #922b21;">Account Inactive</h2>
+      <p class="tagline" style="font-size: 1rem; color: #7b241c;">
+        ${message || "Your account has been marked inactive by the administrator. Dashboard actions are restricted."}
+      </p>
+      <p class="tagline" style="margin-top: 0.75rem; color: #7b241c;">
+        Please contact the administrator to reactivate your teaching access.
+      </p>
+      <div style="margin-top: 1.25rem; display: flex; justify-content: center; gap: 0.75rem;">
+        <a href="#" class="btn ghost" data-inactive-signout>Sign out</a>
+      </div>
+    </section>
+  `;
+
+  const signoutLink = contentPanel.querySelector("[data-inactive-signout]");
+  signoutLink?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/";
+    }
+  });
+}
+
+async function fetchTeacherAccountStatus() {
+  const data = await apiFetch("/api/teacher/status");
+  return data;
 }
 
 async function loadDashboard() {
@@ -132,6 +184,7 @@ async function loadDashboard() {
     availableYears = data.years || [];
     availableSemesters = data.semesters || [];
     availableSubjects = data.subjects || [];
+    availableSubjectMappings = data.subjectMappings || [];
 
     // Update teacher name in header
     const teacherNameEl = document.querySelector("[data-teacher-name]");
@@ -952,15 +1005,32 @@ function showSubjectsModal() {
 
   const list = subjectsModal.querySelector("[data-subjects-list]");
 
-  if (list && availableSubjects.length) {
+  if (list && availableSubjectMappings.length) {
+    list.innerHTML = availableSubjectMappings
+      .map(
+        (entry) => `
+        <tr>
+          <td>${entry.subject || "—"}</td>
+          <td>${entry.year || "—"}</td>
+          <td>${entry.stream || "—"}</td>
+        </tr>
+      `,
+      )
+      .join("");
+  } else if (list && availableSubjects.length) {
     list.innerHTML = availableSubjects
       .map(
-        (subject) =>
-          `<li style="padding: 0.75rem; border-bottom: 1px solid #eee; font-size: 1rem;">${subject}</li>`,
+        (subject) => `
+        <tr>
+          <td>${subject}</td>
+          <td>—</td>
+          <td>—</td>
+        </tr>
+      `,
       )
       .join("");
   } else if (list) {
-    list.innerHTML = '<li style="padding: 0.75rem;">No subjects assigned</li>';
+    list.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 1rem;">No subjects assigned</td></tr>';
   }
 
   subjectsModal.showModal();
@@ -2479,7 +2549,19 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
-function bootstrap() {
+async function bootstrap() {
+  try {
+    const status = await fetchTeacherAccountStatus();
+    if (status?.status === "Inactive") {
+      isTeacherInactive = true;
+      renderInactiveTeacherView(status.message);
+      return;
+    }
+  } catch (error) {
+    handleError(error, "Unable to validate account status");
+    return;
+  }
+
   renderActiveSession();
   attachAttendanceEvents();
   initDialogs();

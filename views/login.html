@@ -1,140 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AcadMark · Sign In</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/css/style.css" />
-  </head>
-  <body>
-    <div
-      class="container"
-      style="
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AcadMark · Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+
+<body>
+  <div class="container" style="
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
-      "
-    >
-      <div class="card" style="max-width: 420px; width: 100%">
-        <div class="brand" style="margin-bottom: 1.5rem">
-          <div class="brand-mark">AM</div>
-          <div>
-            <h1>AcadMark</h1>
-            <p class="tagline">Mark. Manage. Monitor.</p>
+      ">
+    <div class="card" style="max-width: 420px; width: 100%">
+      <div class="brand" style="margin-bottom: 1.5rem">
+        <div class="brand-mark">AM</div>
+        <div>
+          <h1>AcadMark</h1>
+          <p class="tagline">Mark. Manage. Monitor.</p>
+        </div>
+      </div>
+
+      <form id="loginForm" class="layout-grid" style="gap: 1.25rem">
+        <div class="input-group">
+          <label>Sign in as</label>
+          <div class="layout-grid" style="
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+                gap: 0.75rem;
+              ">
+            <label class="card" style="
+                  padding: 0.9rem;
+                  text-align: center;
+                  cursor: pointer;
+                  box-shadow: none;
+                ">
+              <input type="radio" name="role" value="admin" checked style="display: none" />
+              <h3>Admin</h3>
+              <p class="tagline">Manage campus data</p>
+            </label>
+            <label class="card" style="
+                  padding: 0.9rem;
+                  text-align: center;
+                  cursor: pointer;
+                  box-shadow: none;
+                ">
+              <input type="radio" name="role" value="teacher" style="display: none" />
+              <h3>Teacher</h3>
+              <p class="tagline">Track classes</p>
+            </label>
+            <label class="card" style="
+                  padding: 0.9rem;
+                  text-align: center;
+                  cursor: pointer;
+                  box-shadow: none;
+                ">
+              <input type="radio" name="role" value="student" style="display: none" />
+              <h3>Student</h3>
+              <p class="tagline">View attendance</p>
+            </label>
           </div>
         </div>
 
-        <form id="loginForm" class="layout-grid" style="gap: 1.25rem">
-          <div class="input-group">
-            <label>Sign in as</label>
-            <div
-              class="layout-grid"
-              style="
-                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-                gap: 0.75rem;
-              "
-            >
-              <label
-                class="card"
-                style="
-                  padding: 0.9rem;
-                  text-align: center;
-                  cursor: pointer;
-                  box-shadow: none;
-                "
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  value="admin"
-                  checked
-                  style="display: none"
-                />
-                <h3>Admin</h3>
-                <p class="tagline">Manage campus data</p>
-              </label>
-              <label
-                class="card"
-                style="
-                  padding: 0.9rem;
-                  text-align: center;
-                  cursor: pointer;
-                  box-shadow: none;
-                "
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  value="teacher"
-                  style="display: none"
-                />
-                <h3>Teacher</h3>
-                <p class="tagline">Track classes</p>
-              </label>
-              <label
-                class="card"
-                style="
-                  padding: 0.9rem;
-                  text-align: center;
-                  cursor: pointer;
-                  box-shadow: none;
-                "
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  value="student"
-                  style="display: none"
-                />
-                <h3>Student</h3>
-                <p class="tagline">View attendance</p>
-              </label>
-            </div>
-          </div>
+        <div class="input-group">
+          <label for="identifier">ID</label>
+          <input id="identifier" name="identifier" placeholder="Enter your ID" required />
+        </div>
 
-          <div class="input-group">
-            <label for="identifier">ID</label>
-            <input
-              id="identifier"
-              name="identifier"
-              placeholder="Enter your ID"
-              required
-            />
-          </div>
+        <div class="input-group" data-password-field>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" placeholder="Required for admin only" />
+        </div>
 
-          <div class="input-group" data-password-field>
-            <label for="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Required for admin only"
-            />
-          </div>
+        <button class="btn" type="submit">Continue</button>
+      </form>
 
-          <button class="btn" type="submit">Continue</button>
-        </form>
-
-        <p
-          style="
+      <p style="
             margin-top: 1.5rem;
             font-size: 0.85rem;
             color: var(--color-muted);
-          "
-        >
-          Trouble signing in? Contact the AcadMark support desk.
-        </p>
-      </div>
+          ">
+        Trouble signing in? Contact the AcadMark support desk.
+      </p>
     </div>
+  </div>
 
-    <div class="toast-stack" data-toast-stack></div>
-    <script type="module" src="/js/login.js"></script>
-  </body>
+  <div class="toast-stack" data-toast-stack></div>
+  <script type="module" src="/js/login.js"></script>
+</body>
+
 </html>

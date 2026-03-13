@@ -24,26 +24,26 @@ class DefaulterService {
         s.year,
         s.stream,
         s.division,
-        SUM(mas.total_lectures) as total_lectures,
-        SUM(mas.attended_lectures) as attended_lectures,
-        ROUND((SUM(mas.attended_lectures) / NULLIF(SUM(mas.total_lectures), 0)) * 100, 2) as attendance_percentage,
+        SUM(mas.total_sessions) as total_lectures,
+        SUM(mas.present_sessions) as attended_lectures,
+        ROUND((SUM(mas.present_sessions) / NULLIF(SUM(mas.total_sessions), 0)) * 100, 2) as attendance_percentage,
         GROUP_CONCAT(DISTINCT mas.subject ORDER BY mas.subject SEPARATOR ', ') as subjects,
         COUNT(DISTINCT mas.subject) as subject_count,
-        mas.month,
-        mas.year_value,
+        mas.month_val as month,
+        mas.year_val as year_value,
         CASE 
-          WHEN mas.month = 1 THEN 'January'
-          WHEN mas.month = 2 THEN 'February'
-          WHEN mas.month = 3 THEN 'March'
-          WHEN mas.month = 4 THEN 'April'
-          WHEN mas.month = 5 THEN 'May'
-          WHEN mas.month = 6 THEN 'June'
-          WHEN mas.month = 7 THEN 'July'
-          WHEN mas.month = 8 THEN 'August'
-          WHEN mas.month = 9 THEN 'September'
-          WHEN mas.month = 10 THEN 'October'
-          WHEN mas.month = 11 THEN 'November'
-          WHEN mas.month = 12 THEN 'December'
+          WHEN mas.month_val = 1 THEN 'January'
+          WHEN mas.month_val = 2 THEN 'February'
+          WHEN mas.month_val = 3 THEN 'March'
+          WHEN mas.month_val = 4 THEN 'April'
+          WHEN mas.month_val = 5 THEN 'May'
+          WHEN mas.month_val = 6 THEN 'June'
+          WHEN mas.month_val = 7 THEN 'July'
+          WHEN mas.month_val = 8 THEN 'August'
+          WHEN mas.month_val = 9 THEN 'September'
+          WHEN mas.month_val = 10 THEN 'October'
+          WHEN mas.month_val = 11 THEN 'November'
+          WHEN mas.month_val = 12 THEN 'December'
         END as month_name
       FROM student_details_db s
       INNER JOIN monthly_attendance_summary mas ON s.student_id = mas.student_id
@@ -63,12 +63,12 @@ class DefaulterService {
         }
 
         if (month) {
-            query += ` AND mas.month = ?`;
+            query += ` AND mas.month_val = ?`;
             params.push(month);
         }
 
         if (year) {
-            query += ` AND mas.year_value = ?`;
+            query += ` AND mas.year_val = ?`;
             params.push(year);
         }
 
@@ -87,9 +87,9 @@ class DefaulterService {
 
         // Group by student to calculate overall attendance
         query += ` 
-      GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division, mas.month, mas.year_value
+      GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division, mas.month_val, mas.year_val
       HAVING attendance_percentage < ?
-      ORDER BY s.year DESC, mas.month DESC, 
+      ORDER BY s.year DESC, mas.month_val DESC, 
         CASE 
           WHEN s.stream = 'BSCIT' THEN 1
           WHEN s.stream = 'BSCDS' THEN 2
@@ -266,9 +266,9 @@ class DefaulterService {
         s.year,
         s.stream,
         s.division,
-        SUM(sas.total_lectures) as total_lectures,
-        SUM(sas.attended_lectures) as attended_lectures,
-        ROUND((SUM(sas.attended_lectures) / NULLIF(SUM(sas.total_lectures), 0)) * 100, 2) as attendance_percentage,
+        SUM(sas.total_sessions) as total_lectures,
+        SUM(sas.present_count) as attended_lectures,
+        ROUND((SUM(sas.present_count) / NULLIF(SUM(sas.total_sessions), 0)) * 100, 2) as attendance_percentage,
         GROUP_CONCAT(DISTINCT sas.subject ORDER BY sas.subject SEPARATOR ', ') as subjects,
         COUNT(DISTINCT sas.subject) as subject_count
       FROM student_details_db s
@@ -465,32 +465,32 @@ class DefaulterService {
         const query = `
       SELECT 
         sas.subject,
-        sas.total_lectures,
-        sas.attended_lectures,
+        sas.total_sessions as total_lectures,
+        sas.present_count as attended_lectures,
         sas.attendance_percentage,
-        sas.is_defaulter,
-        mas.month,
-        mas.year_value,
+        (sas.attendance_percentage < 75) as is_defaulter,
+        mas.month_val as month,
+        mas.year_val as year_value,
         CASE 
-          WHEN mas.month = 1 THEN 'January'
-          WHEN mas.month = 2 THEN 'February'
-          WHEN mas.month = 3 THEN 'March'
-          WHEN mas.month = 4 THEN 'April'
-          WHEN mas.month = 5 THEN 'May'
-          WHEN mas.month = 6 THEN 'June'
-          WHEN mas.month = 7 THEN 'July'
-          WHEN mas.month = 8 THEN 'August'
-          WHEN mas.month = 9 THEN 'September'
-          WHEN mas.month = 10 THEN 'October'
-          WHEN mas.month = 11 THEN 'November'
-          WHEN mas.month = 12 THEN 'December'
+          WHEN mas.month_val = 1 THEN 'January'
+          WHEN mas.month_val = 2 THEN 'February'
+          WHEN mas.month_val = 3 THEN 'March'
+          WHEN mas.month_val = 4 THEN 'April'
+          WHEN mas.month_val = 5 THEN 'May'
+          WHEN mas.month_val = 6 THEN 'June'
+          WHEN mas.month_val = 7 THEN 'July'
+          WHEN mas.month_val = 8 THEN 'August'
+          WHEN mas.month_val = 9 THEN 'September'
+          WHEN mas.month_val = 10 THEN 'October'
+          WHEN mas.month_val = 11 THEN 'November'
+          WHEN mas.month_val = 12 THEN 'December'
         END as month_name
       FROM student_attendance_stats sas
       LEFT JOIN monthly_attendance_summary mas 
         ON sas.student_id = mas.student_id 
         AND sas.subject = mas.subject
-        AND mas.month = MONTH(CURRENT_DATE)
-        AND mas.year_value = YEAR(CURRENT_DATE)
+        AND mas.month_val = MONTH(CURRENT_DATE)
+        AND mas.year_val = YEAR(CURRENT_DATE)
       WHERE sas.student_id = ?
       ORDER BY sas.subject
     `;

@@ -104,6 +104,12 @@
             <span class="stat-value" data-stat="teachers">0</span>
           </div>
         </div>
+        <div class="card" style="cursor: pointer" data-stat-card="current-sessions">
+          <div class="stat">
+            <span class="stat-label">Current Sessions</span>
+            <span class="stat-value" data-stat="currentSessions">0</span>
+          </div>
+        </div>
         <div class="card" style="cursor: pointer" data-stat-card="streams">
           <div class="stat">
             <span class="stat-label">Streams</span>
@@ -216,29 +222,222 @@
               counts
             </p>
           </div>
-          <button class="btn ghost" data-refresh-teachers>Refresh</button>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+            <button class="btn secondary" data-open-add-teacher-tab>Add Teacher</button>
+            <button class="btn secondary" data-open-edit-teacher-tab>Edit Teacher</button>
+            <button class="btn ghost" data-refresh-teachers>Refresh</button>
+          </div>
         </div>
-        <div class="table-wrapper" style="margin-top: 1rem; max-height: 70vh; overflow-y: auto">
-          <table>
-            <thead>
-              <tr>
-                <th>Teacher ID</th>
-                <th>Name</th>
-                <th>Subject</th>
-                <th>Year</th>
-                <th>Stream</th>
-                <th>Semester</th>
-                <th>Divisions</th>
-                <th>Student Count</th>
-              </tr>
-            </thead>
-            <tbody data-teachers-info-body>
-              <tr>
-                <td colspan="8">Loading...</td>
-              </tr>
-            </tbody>
-          </table>
+        <div style="margin-top: 0.75rem; max-width: 320px;">
+          <input type="text" data-teacher-info-search-input
+            placeholder="Search teachers... (ID, name, subject, year, stream, division)"
+            style="width: 100%; padding: 0.5rem 0.65rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.88rem;" />
         </div>
+        <div data-teachers-list-tab>
+          <div class="table-wrapper" style="margin-top: 1rem; max-height: 70vh; overflow-y: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Teacher ID</th>
+                  <th>Name</th>
+                  <th>Subject</th>
+                  <th>Year</th>
+                  <th>Stream</th>
+                  <th>Semester</th>
+                  <th>Divisions</th>
+                  <th>Student Count</th>
+                  <th>Teaching Status</th>
+                </tr>
+              </thead>
+              <tbody data-teachers-info-body>
+                <tr>
+                  <td colspan="9">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div data-add-teacher-tab style="display: none; margin-top: 1rem">
+          <div class="card" style="box-shadow: none; border-style: dashed; margin: 0">
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap">
+              <h4 style="margin: 0">Add Teacher</h4>
+              <button class="btn ghost" type="button" data-open-teachers-list-tab>Back to list</button>
+            </div>
+            <p class="tagline" style="margin-top: 0.5rem">
+              Add mappings in this order: Subject -> Year -> Semester -> Stream. Division is common for all mappings
+              below.
+            </p>
+
+            <form data-add-teacher-form style="margin-top: 1rem; display: grid; gap: 1rem">
+              <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+                <div class="input-group" style="margin: 0">
+                  <label for="addTeacherId">Teacher ID</label>
+                  <input id="addTeacherId" name="teacherId" type="text" placeholder="e.g. T001" required />
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="addTeacherName">Teacher Name</label>
+                  <input id="addTeacherName" name="teacherName" type="text" placeholder="e.g. Priya Shah" required />
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="addTeacherDivisions">Common Divisions</label>
+                  <input id="addTeacherDivisions" name="division" type="text" placeholder="e.g. A,B,C" required />
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap">
+                  <h5 style="margin: 0">Subject Mappings</h5>
+                  <button class="btn secondary" type="button" data-add-mapping-row>Add Mapping Row</button>
+                </div>
+                <div style="margin-top: 0.75rem; display: grid; gap: 0.75rem" data-teacher-mappings-container></div>
+              </div>
+
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end">
+                <button class="btn ghost" type="button" data-reset-add-teacher-form>Reset</button>
+                <button class="btn" type="submit" data-submit-add-teacher>Add</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div data-edit-teacher-tab style="display: none; margin-top: 1rem">
+          <div class="card" style="box-shadow: none; border-style: dashed; margin: 0">
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap">
+              <h4 style="margin: 0">Edit Teacher</h4>
+              <button class="btn ghost" type="button" data-close-edit-teacher-tab>Back to list</button>
+            </div>
+            <p class="tagline" style="margin-top: 0.5rem">
+              Click a teacher from the list to open an editable tab of their information.
+            </p>
+
+            <div style="display: grid; gap: 1rem; grid-template-columns: minmax(260px, 320px) 1fr; margin-top: 1rem">
+              <div class="card"
+                style="box-shadow: none; border-style: solid; border-color: rgba(0,0,0,0.08); margin: 0; max-height: 60vh; overflow-y: auto">
+                <h5 style="margin: 0 0 0.5rem 0">Teachers</h5>
+                <div style="display: grid; gap: 0.5rem" data-edit-teacher-list>
+                  <p class="tagline">Loading teachers...</p>
+                </div>
+              </div>
+
+              <div class="card"
+                style="box-shadow: none; border-style: solid; border-color: rgba(0,0,0,0.08); margin: 0; display: none"
+                data-edit-teacher-form-panel>
+                <div
+                  style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap">
+                  <h5 style="margin: 0">Teacher Information</h5>
+                  <button class="btn ghost" type="button" data-reset-edit-teacher-form>Reset</button>
+                </div>
+
+                <form data-edit-teacher-form style="margin-top: 1rem; display: grid; gap: 1rem">
+                  <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+                    <div class="input-group" style="margin: 0">
+                      <label for="editTeacherId">Teacher ID</label>
+                      <input id="editTeacherId" name="teacherId" type="text" readonly />
+                    </div>
+                    <div class="input-group" style="margin: 0">
+                      <label for="editTeacherName">Teacher Name</label>
+                      <input id="editTeacherName" name="teacherName" type="text" required />
+                    </div>
+                    <div class="input-group" style="margin: 0">
+                      <label for="editTeacherDivisions">Common Divisions</label>
+                      <input id="editTeacherDivisions" name="division" type="text" placeholder="e.g. A,B,C" required />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap">
+                      <h5 style="margin: 0">Subject Mappings</h5>
+                      <button class="btn secondary" type="button" data-add-edit-mapping-row>Add Mapping Row</button>
+                    </div>
+                    <div style="margin-top: 0.75rem; display: grid; gap: 0.75rem" data-edit-teacher-mappings-container>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end">
+                    <button class="btn" type="submit" data-confirm-edit-teacher>Confirm</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <template data-teacher-mapping-row-template>
+          <div class="card"
+            style="box-shadow: none; border-style: solid; border-color: rgba(0,0,0,0.08); padding: 0.75rem; margin: 0">
+            <div
+              style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end">
+              <div class="input-group" style="margin: 0">
+                <label>Subject</label>
+                <input type="text" data-mapping-subject placeholder="Subject" required />
+              </div>
+              <div class="input-group" style="margin: 0">
+                <label>Year</label>
+                <select data-mapping-year required>
+                  <option value="">Select year...</option>
+                  <option value="FY">FY</option>
+                  <option value="SY">SY</option>
+                  <option value="TY">TY</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin: 0">
+                <label>Semester</label>
+                <select data-mapping-semester required disabled>
+                  <option value="">Select semester...</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin: 0">
+                <label>Stream</label>
+                <select data-mapping-stream required>
+                  <option value="">Select stream...</option>
+                </select>
+              </div>
+              <button class="btn ghost" type="button" data-remove-mapping-row
+                style="height: fit-content; color: #c0392b; border-color: #c0392b">Remove</button>
+            </div>
+          </div>
+        </template>
+
+        <template data-edit-teacher-mapping-row-template>
+          <div class="card"
+            style="box-shadow: none; border-style: solid; border-color: rgba(0,0,0,0.08); padding: 0.75rem; margin: 0">
+            <div
+              style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end">
+              <div class="input-group" style="margin: 0">
+                <label>Subject</label>
+                <input type="text" data-mapping-subject placeholder="Subject" required />
+              </div>
+              <div class="input-group" style="margin: 0">
+                <label>Year</label>
+                <select data-mapping-year required>
+                  <option value="">Select year...</option>
+                  <option value="FY">FY</option>
+                  <option value="SY">SY</option>
+                  <option value="TY">TY</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin: 0">
+                <label>Semester</label>
+                <select data-mapping-semester required disabled>
+                  <option value="">Select semester...</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin: 0">
+                <label>Stream</label>
+                <select data-mapping-stream required>
+                  <option value="">Select stream...</option>
+                </select>
+              </div>
+              <button class="btn ghost" type="button" data-remove-mapping-row
+                style="height: fit-content; color: #c0392b; border-color: #c0392b">Remove</button>
+            </div>
+          </div>
+        </template>
       </section>
 
       <!-- Students Information Section -->
@@ -256,11 +455,26 @@
               Filter students by stream and division to view details
             </p>
           </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+            <button class="btn secondary" data-open-add-student-tab>Add Student</button>
+            <button class="btn secondary" data-open-edit-student-tab>Edit Student</button>
+            <button class="btn secondary" data-open-student-bulk-status-tab>Change Status</button>
+            <button class="btn ghost" data-refresh-students>Refresh</button>
+          </div>
+        </div>
+
+        <div data-students-list-tab>
+          <div style="margin-top: 0.75rem; max-width: 320px;">
+            <input type="text" data-student-info-search-input
+              placeholder="Search students... (ID, name, roll, year, stream, division)"
+              style="width: 100%; padding: 0.5rem 0.65rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.88rem;" />
+          </div>
           <div style="
                 display: flex;
                 gap: 0.75rem;
                 flex-wrap: wrap;
                 align-items: flex-end;
+                margin-top: 0.75rem;
               ">
             <div class="input-group" style="margin: 0; min-width: 150px">
               <label for="filterStream" style="font-size: 0.875rem">Stream</label>
@@ -293,62 +507,237 @@
               Load Students
             </button>
           </div>
-        </div>
 
-        <!-- Subjects & Teachers Info -->
-        <div style="
+          <!-- Subjects & Teachers Info -->
+          <div style="
               margin-top: 1.5rem;
               display: grid;
               gap: 1rem;
               grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             " data-subjects-teachers-container style="display: none">
-          <div class="card" style="box-shadow: none; border-style: dashed; padding: 1rem">
-            <h4 style="margin-bottom: 0.75rem">Subjects</h4>
-            <div data-subjects-list style="display: grid; gap: 0.5rem">
-              <p class="tagline">No subjects available</p>
+            <div class="card" style="box-shadow: none; border-style: dashed; padding: 1rem">
+              <h4 style="margin-bottom: 0.75rem">Subjects</h4>
+              <div data-subjects-list style="display: grid; gap: 0.5rem">
+                <p class="tagline">No subjects available</p>
+              </div>
+            </div>
+            <div class="card" style="box-shadow: none; border-style: dashed; padding: 1rem">
+              <h4 style="margin-bottom: 0.75rem">Teachers</h4>
+              <div data-teachers-list style="display: grid; gap: 0.5rem">
+                <p class="tagline">No teachers available</p>
+              </div>
             </div>
           </div>
-          <div class="card" style="box-shadow: none; border-style: dashed; padding: 1rem">
-            <h4 style="margin-bottom: 0.75rem">Teachers</h4>
-            <div data-teachers-list style="display: grid; gap: 0.5rem">
-              <p class="tagline">No teachers available</p>
-            </div>
+
+          <!-- Student Count Display -->
+          <div style="margin-top: 1.5rem; display: none" data-student-count-display>
+            <p style="font-size: 1rem; font-weight: 500; margin: 0">
+              Total Students: <span data-student-count-value>0</span>
+            </p>
           </div>
-        </div>
 
-        <!-- Student Count Display -->
-        <div style="margin-top: 1.5rem; display: none" data-student-count-display>
-          <p style="font-size: 1rem; font-weight: 500; margin: 0">
-            Total Students: <span data-student-count-value>0</span>
-          </p>
-        </div>
-
-        <!-- Students List -->
-        <div class="table-wrapper" style="
+          <!-- Students List -->
+          <div class="table-wrapper" style="
               margin-top: 1rem;
               max-height: 500px;
               overflow-y: auto;
               display: none;
             " data-students-info-table>
-          <table>
-            <thead>
-              <tr>
-                <th>Roll No</th>
-                <th>Student ID</th>
-                <th>Student Name</th>
-                <th>Year</th>
-                <th>Stream</th>
-                <th>Division</th>
-              </tr>
-            </thead>
-            <tbody data-students-info-body>
-              <tr>
-                <td colspan="6">
-                  Select stream and division to view students
-                </td>
-              </tr>
-            </tbody>
-          </table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Roll No</th>
+                  <th>Student ID</th>
+                  <th>Student Name</th>
+                  <th>Year</th>
+                  <th>Stream</th>
+                  <th>Division</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody data-students-info-body>
+                <tr>
+                  <td colspan="7">
+                    Select stream and division to view students
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div data-add-student-tab style="display: none; margin-top: 1rem">
+          <div class="card" style="box-shadow: none; border-style: dashed; margin: 0">
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap">
+              <h4 style="margin: 0">Add Student</h4>
+              <button class="btn ghost" type="button" data-open-students-list-tab>Back to list</button>
+            </div>
+            <p class="tagline" style="margin-top: 0.5rem">
+              Add a student record to student_details_db.
+            </p>
+
+            <form data-add-student-form style="margin-top: 1rem; display: grid; gap: 1rem">
+              <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+                <div class="input-group" style="margin: 0">
+                  <label for="addStudentId">Student ID</label>
+                  <input id="addStudentId" name="studentId" type="text" placeholder="e.g. S001" required />
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="addStudentName">Student Name</label>
+                  <input id="addStudentName" name="studentName" type="text" placeholder="e.g. Rahul Patil" required />
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="addStudentRollNo">Roll No</label>
+                  <input id="addStudentRollNo" name="rollNo" type="number" min="1" step="1" placeholder="e.g. 25"
+                    required />
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="addStudentYear">Year</label>
+                  <select id="addStudentYear" name="year" required>
+                    <option value="">Select year...</option>
+                    <option value="FY">FY</option>
+                    <option value="SY">SY</option>
+                    <option value="TY">TY</option>
+                  </select>
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="addStudentStream">Stream</label>
+                  <input id="addStudentStream" name="stream" type="text" placeholder="e.g. BSCIT" required />
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="addStudentDivision">Division</label>
+                  <input id="addStudentDivision" name="division" type="text" placeholder="e.g. A" required />
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end">
+                <button class="btn ghost" type="button" data-reset-add-student-form>Reset</button>
+                <button class="btn" type="submit" data-submit-add-student>Add</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div data-edit-student-tab style="display: none; margin-top: 1rem">
+          <div class="card" style="box-shadow: none; border-style: dashed; margin: 0">
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap">
+              <h4 style="margin: 0">Edit Student</h4>
+              <button class="btn ghost" type="button" data-close-edit-student-tab>Back to list</button>
+            </div>
+            <p class="tagline" style="margin-top: 0.5rem">
+              Click a student from the list to open an editable tab of their information.
+            </p>
+
+            <div style="display: grid; gap: 1rem; grid-template-columns: minmax(260px, 320px) 1fr; margin-top: 1rem">
+              <div class="card"
+                style="box-shadow: none; border-style: solid; border-color: rgba(0,0,0,0.08); margin: 0; max-height: 60vh; overflow-y: auto">
+                <h5 style="margin: 0 0 0.5rem 0">Students</h5>
+                <div style="display: grid; gap: 0.5rem" data-edit-student-list>
+                  <p class="tagline">Loading students...</p>
+                </div>
+              </div>
+
+              <div class="card"
+                style="box-shadow: none; border-style: solid; border-color: rgba(0,0,0,0.08); margin: 0; display: none"
+                data-edit-student-form-panel>
+                <div
+                  style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap">
+                  <h5 style="margin: 0">Student Information</h5>
+                  <button class="btn ghost" type="button" data-reset-edit-student-form>Reset</button>
+                </div>
+
+                <form data-edit-student-form style="margin-top: 1rem; display: grid; gap: 1rem">
+                  <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+                    <div class="input-group" style="margin: 0">
+                      <label for="editStudentId">Student ID</label>
+                      <input id="editStudentId" name="studentId" type="text" readonly />
+                    </div>
+                    <div class="input-group" style="margin: 0">
+                      <label for="editStudentName">Student Name</label>
+                      <input id="editStudentName" name="studentName" type="text" required />
+                    </div>
+                    <div class="input-group" style="margin: 0">
+                      <label for="editStudentRollNo">Roll No</label>
+                      <input id="editStudentRollNo" name="rollNo" type="number" min="1" step="1" required />
+                    </div>
+                    <div class="input-group" style="margin: 0">
+                      <label for="editStudentYear">Year</label>
+                      <select id="editStudentYear" name="year" required>
+                        <option value="">Select year...</option>
+                        <option value="FY">FY</option>
+                        <option value="SY">SY</option>
+                        <option value="TY">TY</option>
+                      </select>
+                    </div>
+                    <div class="input-group" style="margin: 0">
+                      <label for="editStudentStream">Stream</label>
+                      <input id="editStudentStream" name="stream" type="text" required />
+                    </div>
+                    <div class="input-group" style="margin: 0">
+                      <label for="editStudentDivision">Division</label>
+                      <input id="editStudentDivision" name="division" type="text" required />
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end">
+                    <button class="btn" type="submit" data-confirm-edit-student>Confirm</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div data-student-bulk-status-tab style="display: none; margin-top: 1rem">
+          <div class="card" style="box-shadow: none; border-style: dashed; margin: 0">
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap">
+              <h4 style="margin: 0">Change Status (Bulk)</h4>
+              <button class="btn ghost" type="button" data-close-student-bulk-status-tab>Back to list</button>
+            </div>
+            <p class="tagline" style="margin-top: 0.5rem">
+              Select Year to auto-fill Stream and Division. You can edit auto-filled entries before applying.
+            </p>
+
+            <form data-student-bulk-status-form style="margin-top: 1rem; display: grid; gap: 1rem">
+              <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+                <div class="input-group" style="margin: 0">
+                  <label for="bulkStudentYear">Year</label>
+                  <select id="bulkStudentYear" name="year" required>
+                    <option value="">Select year...</option>
+                    <option value="FY">FY</option>
+                    <option value="SY">SY</option>
+                    <option value="TY">TY</option>
+                  </select>
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="bulkStudentStream">Stream</label>
+                  <select id="bulkStudentStream" name="stream" disabled>
+                    <option value="ALL">All Streams</option>
+                  </select>
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="bulkStudentDivision">Division</label>
+                  <select id="bulkStudentDivision" name="division" disabled>
+                    <option value="ALL">All Divisions</option>
+                  </select>
+                </div>
+                <div class="input-group" style="margin: 0">
+                  <label for="bulkStudentStatus">Status</label>
+                  <select id="bulkStudentStatus" name="status" required>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end">
+                <button class="btn" type="submit" data-apply-bulk-student-status>Apply Status</button>
+              </div>
+            </form>
+          </div>
         </div>
       </section>
 
@@ -892,6 +1281,47 @@
           <tbody data-teachers-list-body>
             <tr>
               <td colspan="7">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Current Sessions List Modal -->
+  <dialog data-current-sessions-list-modal style="
+        border: none;
+        border-radius: 16px;
+        padding: 2rem;
+        width: min(1100px, 95vw);
+        max-height: 80vh;
+      ">
+    <div class="layout-grid" style="gap: 1rem">
+      <div style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          ">
+        <h3>Current Ongoing Sessions</h3>
+        <button type="button" class="btn ghost" data-close-current-sessions-list>
+          Close
+        </button>
+      </div>
+      <div class="table-wrapper" style="max-height: 60vh; overflow-y: auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>Teacher</th>
+              <th>Year</th>
+              <th>Stream</th>
+              <th>Division</th>
+              <th>Start Time</th>
+            </tr>
+          </thead>
+          <tbody data-current-sessions-list-body>
+            <tr>
+              <td colspan="6">Loading...</td>
             </tr>
           </tbody>
         </table>

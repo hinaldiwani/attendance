@@ -987,11 +987,22 @@
         </button>
       </div>
       <div style="max-height: 50vh; overflow-y: auto">
-        <ul style="list-style: none; padding: 0" data-subjects-list>
-          <li style="padding: 0.75rem; border-bottom: 1px solid #eee">
-            Loading...
-          </li>
-        </ul>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Year</th>
+                <th>Stream</th>
+              </tr>
+            </thead>
+            <tbody data-subjects-list>
+              <tr>
+                <td colspan="3">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </dialog>

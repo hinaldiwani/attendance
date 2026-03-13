@@ -8,6 +8,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import teacherRoutes from "./routes/teacherRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
+import { requireAuth, requireRole } from "./middlewares/authMiddleware.js";
 
 dotenv.config();
 
@@ -69,15 +70,15 @@ app.use("/api/teacher", teacherRoutes);
 app.use("/api/student", studentRoutes);
 
 // fallback for other views
-app.get("/admin", (req, res) => {
+app.get("/admin", requireAuth, requireRole("admin"), (req, res) => {
   res.sendFile(path.join(rootDir, "views", "admin.html"));
 });
 
-app.get("/teacher", (req, res) => {
+app.get("/teacher", requireAuth, requireRole("teacher"), (req, res) => {
   res.sendFile(path.join(rootDir, "views", "teacher.html"));
 });
 
-app.get("/student", (req, res) => {
+app.get("/student", requireAuth, requireRole("student"), (req, res) => {
   res.sendFile(path.join(rootDir, "views", "student.html"));
 });
 
