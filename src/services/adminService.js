@@ -20,6 +20,502 @@ const teacherColumnMap = {
   division: ["division", "class_division"],
 };
 
+const TEMPLATE_TYPE_STUDENTS = "students";
+const TEMPLATE_TYPE_TEACHERS = "teachers";
+const IMPORT_TEMPLATE_TABLE = "bulk_import_template";
+const IMPORT_TEMPLATE_BACKUP_TABLE = "bulk_import_template_backup";
+const LEGACY_IMPORT_TEMPLATE_TABLE = "import_template";
+const LEGACY_IMPORT_TEMPLATE_BACKUP_TABLE = "import_template_backup";
+
+function normalizeTemplateType(type) {
+  if (type === TEMPLATE_TYPE_STUDENTS || type === TEMPLATE_TYPE_TEACHERS) {
+    return type;
+  }
+  throw new Error("Invalid template type");
+}
+
+function parseTemplateRow(rowData) {
+  try {
+    return JSON.parse(rowData || "{}");
+  } catch (error) {
+    return {};
+  }
+}
+
+function serializeTemplateRow(row) {
+  return JSON.stringify(row || {});
+}
+
+function buildTemplateRowKey(type, row = {}) {
+  if (type === TEMPLATE_TYPE_STUDENTS) {
+    return String(row.studentId || "").trim().toUpperCase();
+  }
+
+  const teacherKeyParts = [
+    row.teacherId,
+    row.subject,
+    row.year,
+    row.stream,
+    row.semester,
+    row.division,
+  ];
+
+  return teacherKeyParts
+    .map((value) => String(value || "").trim().toUpperCase())
+    .join("|");
+}
+
+function shouldKeepTemplateRow(type, row = {}) {
+  if (type === TEMPLATE_TYPE_STUDENTS) {
+    return Boolean(String(row.studentId || "").trim());
+  }
+
+  return Boolean(String(row.teacherId || "").trim());
+}
+
+async function removeExactTemplateDuplicates(connection) {
+  const [rows] = await connection.query(
+    `SELECT id, template_type, row_data
+     FROM ${IMPORT_TEMPLATE_TABLE}
+     ORDER BY id ASC`,
+  );
+
+  const seen = new Set();
+  const duplicateIds = [];
+
+  rows.forEach((row) => {
+    const dedupeKey = `${row.template_type}::${row.row_data}`;
+    if (seen.has(dedupeKey)) {
+      duplicateIds.push(row.id);
+      return;
+    }
+    seen.add(dedupeKey);
+  });
+
+  if (!duplicateIds.length) return;
+
+  const placeholders = duplicateIds.map(() => "?").join(",");
+  await connection.query(
+    `DELETE FROM ${IMPORT_TEMPLATE_TABLE} WHERE id IN (${placeholders})`,
+    duplicateIds,
+  );
+}
+
+async function migrateLegacyBackupRows(connection) {
+  const [legacyRows] = await connection.query(
+    `SELECT id, template_type, replaced_rows_count, backup_payload, replaced_by, source_file, replaced_at, snapshot_id, row_data
+     FROM ${IMPORT_TEMPLATE_BACKUP_TABLE}
+     WHERE (snapshot_id IS NULL OR snapshot_id = '' OR row_data IS NULL)
+       AND backup_payload IS NOT NULL
+       AND backup_payload != ''`,
+  );
+
+  for (const legacy of legacyRows) {
+    let parsed = [];
+    try {
+      parsed = JSON.parse(legacy.backup_payload || "[]");
+      if (!Array.isArray(parsed)) parsed = [];
+    } catch (error) {
+      parsed = [];
+    }
+
+    const snapshotId = createSnapshotId();
+    const rowsToPersist = parsed.length > 0 ? parsed : [{}];
+    const totalRows = parsed.length;
+    const BATCH_SIZE = 200;
+
+    for (let i = 0; i < rowsToPersist.length; i += BATCH_SIZE) {
+      const batch = rowsToPersist.slice(i, i + BATCH_SIZE);
+      const placeholders = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(",");
+      const params = batch.flatMap((row, index) => {
+        const rowIndex = i + index + 1;
+        const key = totalRows > 0
+          ? buildTemplateRowKey(legacy.template_type, row)
+          : "EMPTY_SNAPSHOT";
+
+        return [
+          legacy.template_type,
+          legacy.replaced_rows_count || totalRows,
+          "[]",
+          legacy.replaced_by,
+          snapshotId,
+          rowIndex,
+          serializeTemplateRow(row),
+          key,
+          legacy.source_file,
+          legacy.replaced_at,
+        ];
+      });
+
+      await connection.query(
+        `INSERT INTO ${IMPORT_TEMPLATE_BACKUP_TABLE}
+          (template_type, replaced_rows_count, backup_payload, replaced_by, snapshot_id, row_index, row_data, backup_key, source_file, replaced_at)
+         VALUES ${placeholders}`,
+        params,
+      );
+    }
+
+    await connection.query(
+      `DELETE FROM ${IMPORT_TEMPLATE_BACKUP_TABLE} WHERE id = ?`,
+      [legacy.id],
+    );
+  }
+}
+
+export async function ensureImportTemplateTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${IMPORT_TEMPLATE_TABLE} (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      template_type VARCHAR(20) NOT NULL,
+      row_data LONGTEXT NOT NULL,
+      source_file VARCHAR(255) NULL,
+      created_by VARCHAR(100) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_bulk_import_template_type (template_type)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${IMPORT_TEMPLATE_BACKUP_TABLE} (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      template_type VARCHAR(20) NOT NULL,
+      replaced_rows_count INT NOT NULL DEFAULT 0,
+      backup_payload LONGTEXT NOT NULL,
+      replaced_by VARCHAR(100) NULL,
+      snapshot_id VARCHAR(64) NULL,
+      row_index INT NOT NULL DEFAULT 0,
+      row_data LONGTEXT NULL,
+      backup_key VARCHAR(255) NULL,
+      source_file VARCHAR(255) NULL,
+      replaced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_bulk_import_template_backup_type (template_type),
+      INDEX idx_bulk_import_template_backup_snapshot (snapshot_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  const [backupColumns] = await pool.query(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?`,
+    [IMPORT_TEMPLATE_BACKUP_TABLE],
+  );
+
+  const existingBackupColumns = new Set(
+    backupColumns.map((row) => row.COLUMN_NAME)
+  );
+
+  const backupColumnDefinitions = {
+    snapshot_id: "ADD COLUMN snapshot_id VARCHAR(64) NULL AFTER replaced_by",
+    row_index: "ADD COLUMN row_index INT NOT NULL DEFAULT 0 AFTER snapshot_id",
+    row_data: "ADD COLUMN row_data LONGTEXT NULL AFTER row_index",
+    backup_key: "ADD COLUMN backup_key VARCHAR(255) NULL AFTER row_data",
+    source_file: "ADD COLUMN source_file VARCHAR(255) NULL AFTER backup_key",
+  };
+
+  for (const [column, definition] of Object.entries(backupColumnDefinitions)) {
+    if (!existingBackupColumns.has(column)) {
+      await pool.query(`ALTER TABLE ${IMPORT_TEMPLATE_BACKUP_TABLE} ${definition}`);
+    }
+  }
+
+  // Ensure actor identifier columns support string IDs like admin emails.
+  const [createdByColumnRows] = await pool.query(
+    `SELECT DATA_TYPE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = 'created_by'`,
+    [IMPORT_TEMPLATE_TABLE],
+  );
+
+  if (createdByColumnRows.length > 0) {
+    const createdByType = String(createdByColumnRows[0].DATA_TYPE || "").toLowerCase();
+    if (createdByType !== "varchar") {
+      await pool.query(
+        `ALTER TABLE ${IMPORT_TEMPLATE_TABLE} MODIFY COLUMN created_by VARCHAR(100) NULL`,
+      );
+    }
+  }
+
+  const [replacedByColumnRows] = await pool.query(
+    `SELECT DATA_TYPE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = 'replaced_by'`,
+    [IMPORT_TEMPLATE_BACKUP_TABLE],
+  );
+
+  if (replacedByColumnRows.length > 0) {
+    const replacedByType = String(replacedByColumnRows[0].DATA_TYPE || "").toLowerCase();
+    if (replacedByType !== "varchar") {
+      await pool.query(
+        `ALTER TABLE ${IMPORT_TEMPLATE_BACKUP_TABLE} MODIFY COLUMN replaced_by VARCHAR(100) NULL`,
+      );
+    }
+  }
+
+  // One-time migration from old table names if they exist and new table is empty.
+  const [legacyTemplateExistsRows] = await pool.query(
+    `SELECT COUNT(*) AS count
+     FROM information_schema.tables
+     WHERE table_schema = DATABASE()
+       AND table_name = ?`,
+    [LEGACY_IMPORT_TEMPLATE_TABLE],
+  );
+
+  if (Number(legacyTemplateExistsRows?.[0]?.count || 0) > 0) {
+    const [newCountRows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM ${IMPORT_TEMPLATE_TABLE}`,
+    );
+
+    if (Number(newCountRows?.[0]?.count || 0) === 0) {
+      await pool.query(
+        `INSERT INTO ${IMPORT_TEMPLATE_TABLE}
+          (template_type, row_data, source_file, created_by, created_at)
+         SELECT template_type, row_data, source_file, created_by, created_at
+         FROM ${LEGACY_IMPORT_TEMPLATE_TABLE}`,
+      );
+    }
+  }
+
+  const [legacyBackupExistsRows] = await pool.query(
+    `SELECT COUNT(*) AS count
+     FROM information_schema.tables
+     WHERE table_schema = DATABASE()
+       AND table_name = ?`,
+    [LEGACY_IMPORT_TEMPLATE_BACKUP_TABLE],
+  );
+
+  if (Number(legacyBackupExistsRows?.[0]?.count || 0) > 0) {
+    const [newBackupCountRows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM ${IMPORT_TEMPLATE_BACKUP_TABLE}`,
+    );
+
+    if (Number(newBackupCountRows?.[0]?.count || 0) === 0) {
+      await pool.query(
+        `INSERT INTO ${IMPORT_TEMPLATE_BACKUP_TABLE}
+          (template_type, replaced_rows_count, backup_payload, replaced_by, replaced_at)
+         SELECT template_type, replaced_rows_count, backup_payload, replaced_by, replaced_at
+         FROM ${LEGACY_IMPORT_TEMPLATE_BACKUP_TABLE}`,
+      );
+    }
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await migrateLegacyBackupRows(connection);
+    await removeExactTemplateDuplicates(connection);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+function createSnapshotId() {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${Date.now()}_${random}`;
+}
+
+async function insertTemplateBackupSnapshot(
+  connection,
+  templateType,
+  existingRows,
+  actorId,
+  sourceFile,
+) {
+  const snapshotId = createSnapshotId();
+  const totalRows = existingRows.length;
+
+  const rowsToPersist = totalRows > 0 ? existingRows : [{}];
+  const BATCH_SIZE = 200;
+
+  for (let i = 0; i < rowsToPersist.length; i += BATCH_SIZE) {
+    const batch = rowsToPersist.slice(i, i + BATCH_SIZE);
+    const placeholders = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(",");
+    const params = batch.flatMap((row, index) => {
+      const rowIndex = i + index + 1;
+      const key = totalRows > 0
+        ? buildTemplateRowKey(templateType, row)
+        : "EMPTY_SNAPSHOT";
+
+      return [
+        templateType,
+        totalRows,
+        "[]",
+        actorId,
+        snapshotId,
+        rowIndex,
+        serializeTemplateRow(row),
+        key,
+        sourceFile,
+      ];
+    });
+
+    await connection.query(
+      `INSERT INTO ${IMPORT_TEMPLATE_BACKUP_TABLE}
+        (template_type, replaced_rows_count, backup_payload, replaced_by, snapshot_id, row_index, row_data, backup_key, source_file)
+       VALUES ${placeholders}`,
+      params,
+    );
+  }
+}
+
+export async function getImportTemplateRows(type) {
+  const templateType = normalizeTemplateType(type);
+  await ensureImportTemplateTables();
+
+  const [rows] = await pool.query(
+    `SELECT row_data
+     FROM ${IMPORT_TEMPLATE_TABLE}
+     WHERE template_type = ?
+     ORDER BY id ASC`,
+    [templateType],
+  );
+
+  return rows.map((item) => parseTemplateRow(item.row_data));
+}
+
+export async function getImportTemplateCounts() {
+  await ensureImportTemplateTables();
+
+  const [rows] = await pool.query(
+    `SELECT template_type, COUNT(*) AS total
+      FROM ${IMPORT_TEMPLATE_TABLE}
+     GROUP BY template_type`,
+  );
+
+  const counts = {
+    students: 0,
+    teachers: 0,
+  };
+
+  rows.forEach((row) => {
+    if (row.template_type === TEMPLATE_TYPE_STUDENTS) {
+      counts.students = Number(row.total) || 0;
+    }
+    if (row.template_type === TEMPLATE_TYPE_TEACHERS) {
+      counts.teachers = Number(row.total) || 0;
+    }
+  });
+
+  return counts;
+}
+
+export async function storeImportTemplateRows({
+  type,
+  rows,
+  mode = "append",
+  actorId = null,
+  sourceFile = null,
+}) {
+  const templateType = normalizeTemplateType(type);
+  const normalizedMode = mode === "replace" ? "replace" : "append";
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+
+  await ensureImportTemplateTables();
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [existingRowsRaw] = await connection.query(
+      `SELECT row_data
+       FROM ${IMPORT_TEMPLATE_TABLE}
+       WHERE template_type = ?
+       ORDER BY id ASC`,
+      [templateType],
+    );
+
+    const existingRows = existingRowsRaw.map((item) =>
+      parseTemplateRow(item.row_data)
+    );
+
+    if (normalizedMode === "append") {
+      // Snapshot current template state before appending new rows.
+      await insertTemplateBackupSnapshot(
+        connection,
+        templateType,
+        existingRows,
+        actorId,
+        sourceFile,
+      );
+    }
+
+    if (normalizedMode === "replace" && existingRows.length > 0) {
+      await insertTemplateBackupSnapshot(
+        connection,
+        templateType,
+        existingRows,
+        actorId,
+        sourceFile,
+      );
+
+      await connection.query(
+        `DELETE FROM ${IMPORT_TEMPLATE_TABLE} WHERE template_type = ?`,
+        [templateType],
+      );
+    }
+
+    const existingKeys = new Set(
+      existingRows
+        .filter((row) => shouldKeepTemplateRow(templateType, row))
+        .map((row) => buildTemplateRowKey(templateType, row)),
+    );
+
+    const rowsToInsert = [];
+    normalizedRows.forEach((row) => {
+      if (!shouldKeepTemplateRow(templateType, row)) return;
+      const key = buildTemplateRowKey(templateType, row);
+      if (!key) return;
+      if (existingKeys.has(key)) return;
+      existingKeys.add(key);
+      rowsToInsert.push(row);
+    });
+
+    if (rowsToInsert.length > 0) {
+      const placeholders = rowsToInsert.map(() => "(?, ?, ?, ?)").join(",");
+      const params = rowsToInsert.flatMap((row) => [
+        templateType,
+        serializeTemplateRow(row),
+        sourceFile,
+        actorId,
+      ]);
+
+      await connection.query(
+        `INSERT INTO ${IMPORT_TEMPLATE_TABLE}
+          (template_type, row_data, source_file, created_by)
+         VALUES ${placeholders}`,
+        params,
+      );
+    }
+
+    const finalRows = normalizedMode === "append"
+      ? [...existingRows, ...rowsToInsert]
+      : [...rowsToInsert];
+
+    await connection.commit();
+
+    return {
+      mode: normalizedMode,
+      previousCount: existingRows.length,
+      addedCount: rowsToInsert.length,
+      total: finalRows.length,
+      rows: finalRows,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 export function parseStudentImport(filePath) {
   return parseExcel(filePath, studentColumnMap);
 }

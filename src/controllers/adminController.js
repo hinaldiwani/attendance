@@ -10,6 +10,10 @@ import notificationService from "../services/notificationService.js";
 import {
   parseStudentImport,
   parseTeacherImport,
+  ensureImportTemplateTables,
+  storeImportTemplateRows,
+  getImportTemplateRows,
+  getImportTemplateCounts,
   upsertStudents,
   upsertTeachers,
   upsertMappings,
@@ -26,9 +30,23 @@ function ensureImportSession(req) {
     req.session.importQueue = {
       students: [],
       teachers: [],
+      teacherUploadExplicit: false,
     };
   }
+
+  if (typeof req.session.importQueue.teacherUploadExplicit !== "boolean") {
+    req.session.importQueue.teacherUploadExplicit = false;
+  }
+
   return req.session.importQueue;
+}
+
+function normalizeStudents(rows = []) {
+  return rows.filter((row) => row?.studentId);
+}
+
+function normalizeTeachers(rows = []) {
+  return rows.filter((row) => row?.teacherId);
 }
 
 export async function handleStudentImport(req, res, next) {
@@ -37,16 +55,47 @@ export async function handleStudentImport(req, res, next) {
       return res.status(400).json({ message: "Upload file is required" });
     }
 
-    const students = parseStudentImport(req.file.path).filter(
-      (row) => row.studentId,
-    );
+    const mergeMode = req.body?.mergeMode;
+    const hasExplicitMergeMode = ["append", "replace"].includes(mergeMode);
+    const counts = await getImportTemplateCounts();
+    const existingCount = Number(counts.students || 0);
+
+    if (existingCount > 0 && !hasExplicitMergeMode) {
+      return res.status(409).json({
+        message: "Add the imports to the same file?",
+        requiresDecision: true,
+        type: "students",
+        existingCount,
+      });
+    }
+
+    const students = normalizeStudents(parseStudentImport(req.file.path));
+    const normalizedMergeMode = mergeMode === "replace" ? "replace" : "append";
+
+    const templateState = await storeImportTemplateRows({
+      type: "students",
+      rows: students,
+      mode: normalizedMergeMode,
+      actorId: req.session.user.id,
+      sourceFile: req.file.originalname || null,
+    });
+
     const queue = ensureImportSession(req);
-    queue.students = students;
+    queue.students = templateState.rows;
+    // Student upload starts a fresh cycle unless teachers are uploaded again explicitly.
+    queue.teachers = [];
+    queue.teacherUploadExplicit = false;
+
+    const templateCounts = await getImportTemplateCounts();
 
     return res.json({
       message: "Student file processed successfully",
-      total: students.length,
-      preview: students,
+      total: templateState.total,
+      uploaded: students.length,
+      previousCount: templateState.previousCount,
+      preview: templateState.rows,
+      mode: templateState.mode,
+      templateCounts,
     });
   } catch (error) {
     return next(error);
@@ -63,16 +112,45 @@ export async function handleTeacherImport(req, res, next) {
       return res.status(400).json({ message: "Upload file is required" });
     }
 
-    const teachers = parseTeacherImport(req.file.path).filter(
-      (row) => row.teacherId,
-    );
+    const mergeMode = req.body?.mergeMode;
+    const hasExplicitMergeMode = ["append", "replace"].includes(mergeMode);
+    const counts = await getImportTemplateCounts();
+    const existingCount = Number(counts.teachers || 0);
+
+    if (existingCount > 0 && !hasExplicitMergeMode) {
+      return res.status(409).json({
+        message: "Add the imports to the same file?",
+        requiresDecision: true,
+        type: "teachers",
+        existingCount,
+      });
+    }
+
+    const teachers = normalizeTeachers(parseTeacherImport(req.file.path));
+    const normalizedMergeMode = mergeMode === "replace" ? "replace" : "append";
+
+    const templateState = await storeImportTemplateRows({
+      type: "teachers",
+      rows: teachers,
+      mode: normalizedMergeMode,
+      actorId: req.session.user.id,
+      sourceFile: req.file.originalname || null,
+    });
+
     const queue = ensureImportSession(req);
-    queue.teachers = teachers;
+    queue.teachers = templateState.rows;
+    queue.teacherUploadExplicit = true;
+
+    const templateCounts = await getImportTemplateCounts();
 
     return res.json({
       message: "Teacher file processed successfully",
-      total: teachers.length,
-      preview: teachers,
+      total: templateState.total,
+      uploaded: teachers.length,
+      previousCount: templateState.previousCount,
+      preview: templateState.rows,
+      mode: templateState.mode,
+      templateCounts,
     });
   } catch (error) {
     return next(error);
@@ -86,7 +164,32 @@ export async function handleTeacherImport(req, res, next) {
 export async function confirmImport(req, res, next) {
   try {
     const queue = ensureImportSession(req);
-    const { mappings = [], clearExisting = false } = req.body;
+    const {
+      mappings = [],
+      clearExisting = false,
+      includeStudents = true,
+      includeTeachers = false,
+    } = req.body;
+
+    // Confirm should import only what was uploaded in this active session queue.
+    queue.students = normalizeStudents(queue.students || []);
+    queue.teachers = normalizeTeachers(queue.teachers || []);
+
+    if (!includeStudents) {
+      queue.students = [];
+    }
+
+    if (!includeTeachers) {
+      queue.teachers = [];
+    }
+
+    // Absolute guard: teachers can be imported only after explicit teacher upload in this cycle.
+    if (!queue.teacherUploadExplicit) {
+      queue.teachers = [];
+    }
+
+    // Template persistence is handled at upload time.
+    // Do not append again during confirm to avoid duplicate template rows.
 
     const results = {
       students: { total: 0, inserted: 0, skipped: 0 },
@@ -134,7 +237,7 @@ export async function confirmImport(req, res, next) {
       );
     }
 
-    if (queue.teachers.length) {
+    if (includeTeachers && queue.teacherUploadExplicit && queue.teachers.length) {
       results.teachers = await upsertTeachers(
         queue.teachers,
         req.session.user.id,
@@ -160,7 +263,11 @@ export async function confirmImport(req, res, next) {
       }
     }
 
-    req.session.importQueue = { students: [], teachers: [] };
+    req.session.importQueue = {
+      students: [],
+      teachers: [],
+      teacherUploadExplicit: false,
+    };
 
     // Notify about data import
     notificationService.notifyDataImport({
@@ -196,11 +303,39 @@ export async function confirmImport(req, res, next) {
 }
 
 export function getImportPreview(req, res) {
-  const queue = ensureImportSession(req);
-  return res.json({
-    students: queue.students.slice(0, 10),
-    teachers: queue.teachers.slice(0, 10),
-  });
+  Promise.all([
+    getImportTemplateRows("students"),
+    getImportTemplateRows("teachers"),
+  ])
+    .then(([students, teachers]) => {
+      res.json({ students: students.slice(0, 10), teachers: teachers.slice(0, 10) });
+    })
+    .catch(() => {
+      const queue = ensureImportSession(req);
+      res.json({
+        students: queue.students.slice(0, 10),
+        teachers: queue.teachers.slice(0, 10),
+      });
+    });
+}
+
+export async function getImportTemplateStatus(req, res, next) {
+  try {
+    const type = (req.query?.type || "").toString().toLowerCase();
+    if (!["students", "teachers"].includes(type)) {
+      return res.status(400).json({ message: "Invalid template type" });
+    }
+
+    const counts = await getImportTemplateCounts();
+
+    return res.json({
+      type,
+      existingCount: counts[type] || 0,
+      counts,
+    });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 export async function fetchImportActivity(req, res, next) {
@@ -693,9 +828,19 @@ export async function deleteAllData(req, res, next) {
       await connection.query(`DELETE FROM teacher_student_map`);
       await connection.query(`DELETE FROM attendance_sessions`);
       await connection.query(`DELETE FROM attendance_records`);
+      await connection.query(`DELETE FROM bulk_import_template`);
+      await connection.query(`DELETE FROM bulk_import_template_backup`);
       await connection.query(
         `DELETE FROM activity_logs WHERE actor_role != 'admin'`,
       );
+
+      if (req.session) {
+        req.session.importQueue = {
+          students: [],
+          teachers: [],
+          teacherUploadExplicit: false,
+        };
+      }
 
       // Log the action
       await connection.query(
@@ -718,6 +863,8 @@ export async function deleteAllData(req, res, next) {
           "teacherStudentMaps",
           "attendanceSessions",
           "attendanceRecords",
+          "bulkImportTemplate",
+          "bulkImportTemplateBackup",
         ],
       });
     } catch (error) {
@@ -1792,6 +1939,8 @@ export async function getStreamsDivisions(req, res, next) {
   try {
     const { year, stream } = req.query;
 
+    await ensureImportTemplateTables();
+
     if (!year) {
       return res.status(400).json({
         message: "Year is required",
@@ -1800,10 +1949,22 @@ export async function getStreamsDivisions(req, res, next) {
 
     // Get distinct streams for the year
     const [streamsList] = await pool.query(
-      `SELECT DISTINCT stream FROM student_details_db 
-       WHERE year = ? AND stream IS NOT NULL AND stream != ''
-       ORDER BY stream`,
-      [year],
+      `SELECT DISTINCT combined.stream
+       FROM (
+         SELECT stream
+         FROM student_details_db
+         WHERE year = ?
+
+         UNION
+
+         SELECT JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.stream')) AS stream
+         FROM bulk_import_template
+         WHERE template_type = 'students'
+           AND JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.year')) = ?
+       ) AS combined
+       WHERE combined.stream IS NOT NULL AND combined.stream != ''
+       ORDER BY combined.stream`,
+      [year, year],
     );
 
     // If stream is provided, get divisions for that year-stream combination
@@ -1812,15 +1973,44 @@ export async function getStreamsDivisions(req, res, next) {
     let queryParams;
 
     if (stream) {
-      divisionsQuery = `SELECT DISTINCT division FROM student_details_db 
-                        WHERE year = ? AND stream = ? AND division IS NOT NULL AND division != ''
-                        ORDER BY division`;
-      queryParams = [year, stream];
+      divisionsQuery = `
+        SELECT DISTINCT combined.division
+        FROM (
+          SELECT division
+          FROM student_details_db
+          WHERE year = ? AND stream = ?
+
+          UNION
+
+          SELECT JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.division')) AS division
+          FROM bulk_import_template
+          WHERE template_type = 'students'
+            AND JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.year')) = ?
+            AND JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.stream')) = ?
+        ) AS combined
+        WHERE combined.division IS NOT NULL AND combined.division != ''
+        ORDER BY combined.division
+      `;
+      queryParams = [year, stream, year, stream];
     } else {
-      divisionsQuery = `SELECT DISTINCT division FROM student_details_db 
-                        WHERE year = ? AND division IS NOT NULL AND division != ''
-                        ORDER BY division`;
-      queryParams = [year];
+      divisionsQuery = `
+        SELECT DISTINCT combined.division
+        FROM (
+          SELECT division
+          FROM student_details_db
+          WHERE year = ?
+
+          UNION
+
+          SELECT JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.division')) AS division
+          FROM bulk_import_template
+          WHERE template_type = 'students'
+            AND JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.year')) = ?
+        ) AS combined
+        WHERE combined.division IS NOT NULL AND combined.division != ''
+        ORDER BY combined.division
+      `;
+      queryParams = [year, year];
     }
 
     const [divisionsList] = await pool.query(divisionsQuery, queryParams);
@@ -1898,6 +2088,8 @@ export async function getStudentDivisions(req, res, next) {
   try {
     const { stream, year } = req.query;
 
+    await ensureImportTemplateTables();
+
     if (!stream || !year) {
       return res.status(400).json({
         message: "Stream and year are required",
@@ -1905,14 +2097,33 @@ export async function getStudentDivisions(req, res, next) {
     }
 
     const [divisionsList] = await pool.query(
-      `SELECT DISTINCT division FROM student_details_db 
-       WHERE stream = ? AND year = ?
-       AND division IS NOT NULL AND division != ''
-       ORDER BY division`,
-      [stream, year],
+      `SELECT DISTINCT combined.division
+       FROM (
+         SELECT division
+         FROM student_details_db
+         WHERE stream = ? AND year = ?
+
+         UNION
+
+         SELECT JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.division')) AS division
+         FROM bulk_import_template
+         WHERE template_type = 'students'
+           AND JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.stream')) = ?
+           AND JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.year')) = ?
+       ) AS combined
+       WHERE combined.division IS NOT NULL AND combined.division != ''
+       ORDER BY combined.division`,
+      [stream, year, stream, year],
     );
 
-    const divisions = divisionsList.map((d) => d.division);
+    const divisions = [
+      ...new Set(
+        divisionsList
+          .map((d) => d.division)
+          .flatMap((div) => div.split(",").map((d) => d.trim().toUpperCase()))
+          .filter((d) => d.length > 0),
+      ),
+    ];
 
     return res.json({
       divisions,
@@ -1944,10 +2155,22 @@ export async function getTeacherStreams(req, res, next) {
 // Get streams from student_details_db
 export async function getStudentStreams(req, res, next) {
   try {
+    await ensureImportTemplateTables();
+
     const [streamsList] = await pool.query(
-      `SELECT DISTINCT stream FROM student_details_db 
-       WHERE stream IS NOT NULL AND stream != ''
-       ORDER BY stream`,
+      `SELECT DISTINCT combined.stream
+       FROM (
+         SELECT stream
+         FROM student_details_db
+
+         UNION
+
+         SELECT JSON_UNQUOTE(JSON_EXTRACT(row_data, '$.stream')) AS stream
+         FROM bulk_import_template
+         WHERE template_type = 'students'
+       ) AS combined
+       WHERE combined.stream IS NOT NULL AND combined.stream != ''
+       ORDER BY combined.stream`,
     );
 
     return res.json({

@@ -18,6 +18,9 @@ window.addEventListener("DOMContentLoaded", () => {
   const previewTable = previewArea?.querySelector("[data-preview-table]");
   const previewHead = previewTable?.querySelector("thead");
   const previewBody = previewTable?.querySelector("tbody");
+  const templateCountLabel = previewArea?.querySelector(
+    "[data-import-template-counts]",
+  );
   const confirmButton = previewArea?.querySelector("[data-confirm-import]");
   const stepsList = document.querySelector("[data-import-steps]");
   const viewHistoryButton = document.querySelector("[data-view-history]");
@@ -32,6 +35,109 @@ window.addEventListener("DOMContentLoaded", () => {
     students: 0,
     teachers: 0,
   };
+  const uploadCycle = {
+    studentsUploaded: false,
+    teachersUploaded: false,
+  };
+
+  const PAUSE_KEY = "adminDataFeedPaused";
+  let isDataFeedPaused = false;
+
+  function persistPauseState() {
+    try {
+      if (isDataFeedPaused) {
+        sessionStorage.setItem(PAUSE_KEY, "1");
+      } else {
+        sessionStorage.removeItem(PAUSE_KEY);
+      }
+    } catch (error) {
+      console.warn("Unable to persist pause state:", error);
+    }
+  }
+
+  function setDataFeedPaused(paused) {
+    isDataFeedPaused = Boolean(paused);
+    persistPauseState();
+
+    if (isDataFeedPaused) {
+      cleanupLiveUpdates();
+    }
+  }
+
+  function applyZeroedDashboardState() {
+    statElements.forEach((stat) => {
+      stat.textContent = "0";
+    });
+
+    if (activityBody) {
+      activityBody.innerHTML = '<tr><td colspan="3">No recent activity.</td></tr>';
+    }
+
+    if (teachersInfoBody) {
+      teachersInfoBody.innerHTML =
+        '<tr><td colspan="9">No teachers found</td></tr>';
+    }
+
+    if (previewTable) {
+      previewTable.style.display = "none";
+    }
+
+    if (confirmButton) {
+      confirmButton.style.display = "none";
+    }
+
+    importState.students = 0;
+    importState.teachers = 0;
+    templateState.students = 0;
+    templateState.teachers = 0;
+    updateTemplateCountLabel();
+
+    currentStage = 1;
+    updateSteps();
+  }
+
+  const templateState = {
+    students: 0,
+    teachers: 0,
+  };
+
+  function updateTemplateCountLabel() {
+    if (!templateCountLabel) return;
+    templateCountLabel.textContent =
+      `Template totals: Students ${templateState.students}, Teachers ${templateState.teachers}`;
+  }
+
+  async function loadTemplateCounts() {
+    if (isDataFeedPaused) {
+      templateState.students = 0;
+      templateState.teachers = 0;
+      updateTemplateCountLabel();
+      return;
+    }
+
+    try {
+      const [studentsStatus, teachersStatus] = await Promise.all([
+        apiFetch("/api/admin/import/template-status?type=students"),
+        apiFetch("/api/admin/import/template-status?type=teachers"),
+      ]);
+
+      templateState.students = studentsStatus?.existingCount || 0;
+      templateState.teachers = teachersStatus?.existingCount || 0;
+      updateTemplateCountLabel();
+    } catch (error) {
+      console.warn("Unable to load template counts:", error);
+    }
+  }
+
+  function applyTemplateCounts(counts = {}) {
+    if (typeof counts.students === "number") {
+      templateState.students = counts.students;
+    }
+    if (typeof counts.teachers === "number") {
+      templateState.teachers = counts.teachers;
+    }
+    updateTemplateCountLabel();
+  }
 
   function updateSteps() {
     if (!stepsList) return;
@@ -66,6 +172,11 @@ window.addEventListener("DOMContentLoaded", () => {
   // All function definitions must be inside DOMContentLoaded to access DOM elements
 
   async function loadStats() {
+    if (isDataFeedPaused) {
+      applyZeroedDashboardState();
+      return;
+    }
+
     console.log("🚀 loadStats() called");
     try {
       console.log("🔄 Fetching /api/admin/stats...");
@@ -179,6 +290,13 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadActivity() {
+    if (isDataFeedPaused) {
+      if (activityBody) {
+        activityBody.innerHTML = '<tr><td colspan="3">No recent activity.</td></tr>';
+      }
+      return;
+    }
+
     console.log("🚀 loadActivity() called");
     try {
       console.log("🔄 Fetching /api/admin/activity...");
@@ -232,6 +350,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
+        setDataFeedPaused(false);
         if (!input?.files?.length) {
           showToast({
             title: "No file selected",
@@ -245,19 +364,28 @@ window.addEventListener("DOMContentLoaded", () => {
         toggleLoading(submitBtn, true);
 
         try {
-          const formData = new FormData();
-          formData.append("file", input.files[0]);
-
           const endpoint =
             type === "students"
               ? "/api/admin/import/students"
               : "/api/admin/import/teachers";
 
-          const response = await fetch(endpoint, {
-            method: "POST",
-            body: formData,
-            credentials: "include",
-          });
+          async function uploadWithMode(mergeMode = "append") {
+            const formData = new FormData();
+            formData.append("file", input.files[0]);
+            formData.append("mergeMode", mergeMode);
+
+            return fetch(endpoint, {
+              method: "POST",
+              body: formData,
+              credentials: "include",
+            });
+          }
+
+          let response = await uploadWithMode("append");
+          if (response.status === 409) {
+            // Backward-compatible retry for older server behavior that may request a decision.
+            response = await uploadWithMode("append");
+          }
 
           if (!response.ok) {
             const payload = await response.json();
@@ -266,8 +394,18 @@ window.addEventListener("DOMContentLoaded", () => {
 
           const payload = await response.json();
           renderPreview(payload.preview);
+          applyTemplateCounts(payload.templateCounts || {});
 
           importState[type] = payload.total;
+
+          if (type === "students") {
+            uploadCycle.studentsUploaded = true;
+            uploadCycle.teachersUploaded = false;
+          }
+
+          if (type === "teachers") {
+            uploadCycle.teachersUploaded = true;
+          }
 
           // If uploading students, it's the start of a new import cycle
           if (type === "students") {
@@ -286,7 +424,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
           showToast({
             title: "Upload successful",
-            message: `${payload.total} rows ready for review`,
+            message:
+              `Uploaded ${payload.uploaded || 0}. Template now has ${payload.total} ${type} entries ready for review.`,
             type: "success",
           });
         } catch (error) {
@@ -303,13 +442,8 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   confirmButton?.addEventListener("click", async () => {
-    // Ask user if they want to clear existing data
-    const clearExisting = confirm(
-      "Do you want to CLEAR ALL existing data before importing?\n\n" +
-      "• Click OK to DELETE all existing students/teachers and import fresh data\n" +
-      "• Click Cancel to ADD/UPDATE the imported data to existing records\n\n" +
-      "Recommended: Choose OK for a clean import with only the uploaded data.",
-    );
+    // Always append to existing records; never clear previous data on confirm import.
+    const clearExisting = false;
 
     toggleLoading(confirmButton, true);
     try {
@@ -317,11 +451,16 @@ window.addEventListener("DOMContentLoaded", () => {
         method: "POST",
         body: JSON.stringify({
           mappings: [],
-          clearExisting: clearExisting,
+          clearExisting,
+          includeStudents: uploadCycle.studentsUploaded,
+          includeTeachers: uploadCycle.teachersUploaded,
         }),
       });
 
       renderPreview([]);
+      await loadTemplateCounts();
+      uploadCycle.studentsUploaded = false;
+      uploadCycle.teachersUploaded = false;
 
       // Don't reset immediately - let loadStats update based on actual data
       // This ensures the checklist reflects the database state
@@ -600,9 +739,8 @@ window.addEventListener("DOMContentLoaded", () => {
         type: "success",
       });
 
-      // Refresh the dashboard
-      await loadStats();
-      await loadActivity();
+      setDataFeedPaused(true);
+      applyZeroedDashboardState();
     } catch (error) {
       showToast({
         title: "Delete operation failed",
@@ -1434,6 +1572,10 @@ window.addEventListener("DOMContentLoaded", () => {
   let liveEventSource = null;
 
   function setupLiveUpdates() {
+    if (isDataFeedPaused) {
+      return;
+    }
+
     // Close existing connection if any
     if (liveEventSource) {
       liveEventSource.close();
@@ -1510,7 +1652,7 @@ window.addEventListener("DOMContentLoaded", () => {
       cleanupLiveUpdates();
     } else {
       // Reconnect when page becomes visible again
-      if (!liveEventSource) {
+      if (!isDataFeedPaused && !liveEventSource) {
         setupLiveUpdates();
       }
     }
@@ -1872,6 +2014,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
   async function loadTeachersInfo() {
     if (!teachersInfoBody) return;
+
+    if (isDataFeedPaused) {
+      teachersInfoBody.innerHTML = '<tr><td colspan="9">No teachers found</td></tr>';
+      return;
+    }
 
     teachersInfoBody.innerHTML = '<tr><td colspan="9">Loading...</td></tr>';
 
@@ -2538,6 +2685,12 @@ window.addEventListener("DOMContentLoaded", () => {
   // Load streams from teacher_details_db
   async function loadStreamsFromTeachers() {
     if (!filterStreamSelect) return;
+
+    if (isDataFeedPaused) {
+      filterStreamSelect.innerHTML =
+        '<option value="">Select stream...</option>';
+      return;
+    }
 
     try {
       // Load streams from student data instead of teacher data
@@ -3692,10 +3845,23 @@ window.addEventListener("DOMContentLoaded", () => {
   // Initialize everything after all functions are defined
   console.log("🎬 Starting initialization...");
   try {
+    try {
+      isDataFeedPaused = sessionStorage.getItem(PAUSE_KEY) === "1";
+    } catch (error) {
+      isDataFeedPaused = false;
+    }
+
     console.log("📝 Running updateSteps()");
     updateSteps();
     console.log("📂 Running setupUploads()");
     setupUploads();
+    loadTemplateCounts().catch(() => { });
+
+    if (isDataFeedPaused) {
+      applyZeroedDashboardState();
+      console.log("⏸️ Data feed paused after delete; waiting for new import upload.");
+      return;
+    }
 
     console.log("📊 Starting async initializations...");
     // Run async initializations independently to prevent blocking

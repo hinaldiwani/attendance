@@ -2,6 +2,7 @@ import pool from "./config/db.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { ensureImportTemplateTables } from "./src/services/adminService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +69,10 @@ async function initializeDatabase() {
 
     // Always run schema migrations to keep structure up-to-date
     await runSchemaMigrations();
+
+    // Ensure persistent admin bulk import template tables exist
+    await ensureImportTemplateTables();
+    console.log("✅ bulk_import_template tables verified");
 
   } catch (error) {
     console.error("❌ Database initialization error:", error.message);

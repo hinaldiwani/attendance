@@ -8,6 +8,7 @@ import {
   handleTeacherImport,
   confirmImport,
   getImportPreview,
+  getImportTemplateStatus,
   fetchImportActivity,
   fetchDashboardStats,
   downloadTemplate,
@@ -79,6 +80,7 @@ router.post("/import/students", upload.single("file"), handleStudentImport);
 router.post("/import/teachers", upload.single("file"), handleTeacherImport);
 router.post("/import/confirm", confirmImport);
 router.get("/import/preview", getImportPreview);
+router.get("/import/template-status", getImportTemplateStatus);
 router.get("/activity", fetchImportActivity);
 router.get("/stats", fetchDashboardStats);
 router.get("/dashboard", fetchDashboardStats);
