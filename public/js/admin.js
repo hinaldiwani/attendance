@@ -1672,6 +1672,18 @@ window.addEventListener("DOMContentLoaded", () => {
   const openAddTeacherTabButton = document.querySelector(
     "[data-open-add-teacher-tab]",
   );
+  const downloadTeacherTemplateButton = document.querySelector(
+    "[data-download-teacher-template]",
+  );
+  const templateDownloadOptions = document.querySelector(
+    "[data-template-download-options]",
+  );
+  const downloadTeacherTemplateOptionButton = document.querySelector(
+    "[data-download-template-teacher]",
+  );
+  const downloadStudentTemplateOptionButton = document.querySelector(
+    "[data-download-template-student]",
+  );
   const openEditTeacherTabButton = document.querySelector(
     "[data-open-edit-teacher-tab]",
   );
@@ -1741,6 +1753,55 @@ window.addEventListener("DOMContentLoaded", () => {
     if (teachersListTab) teachersListTab.style.display = "none";
     if (addTeacherTab) addTeacherTab.style.display = "none";
     if (editTeacherTab) editTeacherTab.style.display = "block";
+  }
+
+  function downloadTemplateCsv(headers, filename) {
+    const csvContent = `${headers.join(",")}\n`;
+    const blob = new Blob([`\uFEFF${csvContent}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
+  function downloadTeacherTemplateCsv() {
+    downloadTemplateCsv(
+      [
+        "Teacher_ID",
+        "Teacher_Name",
+        "Subject",
+        "Stream",
+        "Year",
+        "Semester",
+        "Division",
+      ],
+      "teacher_template.csv",
+    );
+  }
+
+  function downloadStudentTemplateCsv() {
+    downloadTemplateCsv(
+      ["Student_ID", "Student_Name", "Roll_No", "Year", "Division", "Stream"],
+      "student_template.csv",
+    );
+  }
+
+  function toggleTemplateDownloadOptions() {
+    if (!templateDownloadOptions) return;
+    const isVisible = templateDownloadOptions.style.display === "flex";
+    templateDownloadOptions.style.display = isVisible ? "none" : "flex";
+  }
+
+  function hideTemplateDownloadOptions() {
+    if (!templateDownloadOptions) return;
+    templateDownloadOptions.style.display = "none";
   }
 
   function normalizeCommonDivision(value) {
@@ -2123,6 +2184,18 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   refreshTeachersButton?.addEventListener("click", loadTeachersInfo);
+  downloadTeacherTemplateButton?.addEventListener(
+    "click",
+    toggleTemplateDownloadOptions,
+  );
+  downloadTeacherTemplateOptionButton?.addEventListener("click", () => {
+    downloadTeacherTemplateCsv();
+    hideTemplateDownloadOptions();
+  });
+  downloadStudentTemplateOptionButton?.addEventListener("click", () => {
+    downloadStudentTemplateCsv();
+    hideTemplateDownloadOptions();
+  });
   teacherInfoSearchInput?.addEventListener("input", applyTeachersInfoSearch);
   openAddTeacherTabButton?.addEventListener("click", async () => {
     if (!teacherFormStreams.length) {

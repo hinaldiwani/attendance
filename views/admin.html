@@ -225,10 +225,23 @@
               counts
             </p>
           </div>
-          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
-            <button class="btn secondary" data-open-add-teacher-tab>Add Teacher</button>
-            <button class="btn secondary" data-open-edit-teacher-tab>Edit Teacher</button>
-            <button class="btn ghost" data-refresh-teachers>Refresh</button>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-start">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start">
+              <button class="btn secondary" data-download-teacher-template
+                title="Show options to download Teacher or Student CSV import templates.">Download Template</button>
+              <div data-template-download-options style="display: none; gap: 0.5rem; flex-wrap: wrap">
+                <button class="btn secondary" type="button" data-download-template-teacher
+                  title="Download Teacher import template CSV with required columns.">Teacher</button>
+                <button class="btn secondary" type="button" data-download-template-student
+                  title="Download Student import template CSV with required columns.">Student</button>
+              </div>
+            </div>
+            <button class="btn secondary" data-open-add-teacher-tab
+              title="Open the Add Teacher form to create a teacher and subject mappings.">Add Teacher</button>
+            <button class="btn secondary" data-open-edit-teacher-tab
+              title="Open the Edit Teacher tab to update existing teacher details and mappings.">Edit Teacher</button>
+            <button class="btn ghost" data-refresh-teachers
+              title="Reload the latest teacher list and mapping counts.">Refresh</button>
           </div>
         </div>
         <div style="margin-top: 0.75rem; max-width: 320px;">
