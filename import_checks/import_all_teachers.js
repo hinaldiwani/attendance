@@ -5,6 +5,12 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const LETTERS_WITH_SPACES = /^[A-Za-z ]+$/;
+
+function isLettersOnlyName(value) {
+    const name = String(value || '').trim();
+    return Boolean(name) && LETTERS_WITH_SPACES.test(name);
+}
 
 function parseCSV(csvContent) {
     const lines = csvContent.split('\n').filter(line => line.trim());
@@ -38,10 +44,17 @@ async function importAllTeachers() {
 
         let successCount = 0;
         let errorCount = 0;
+        let validationSkipCount = 0;
 
         // Import each teacher assignment
         for (const record of records) {
             try {
+                if (!isLettersOnlyName(record.Teacher_Name)) {
+                    validationSkipCount++;
+                    console.log(`⚠️  Skipped ${record.Teacher_ID}: invalid teacher name (letters and spaces only)`);
+                    continue;
+                }
+
                 await pool.query(
                     `INSERT INTO teacher_details_db 
            (teacher_id, name, subject, year, stream, semester, division) 
@@ -68,6 +81,7 @@ async function importAllTeachers() {
         console.log('📊 IMPORT SUMMARY');
         console.log('═══════════════════════════════════════════════════════');
         console.log(`✅ Successfully imported: ${successCount} teacher assignments`);
+        console.log(`⚠️  Validation skipped: ${validationSkipCount} teacher assignments`);
         console.log(`❌ Errors: ${errorCount}`);
         console.log('═══════════════════════════════════════════════════════\n');
 

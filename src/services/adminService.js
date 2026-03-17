@@ -27,6 +27,12 @@ const IMPORT_TEMPLATE_BACKUP_TABLE = "bulk_import_template_backup";
 const LEGACY_IMPORT_TEMPLATE_TABLE = "import_template";
 const LEGACY_IMPORT_TEMPLATE_BACKUP_TABLE = "import_template_backup";
 
+const ALPHANUMERIC_ONLY = /^[A-Za-z0-9]+$/;
+const ALPHANUMERIC_WITH_SPACES = /^[A-Za-z0-9 ]+$/;
+const ALPHANUMERIC_WITH_SPACES_AND_COMMAS = /^[A-Za-z0-9, ]+$/;
+const LETTERS_WITH_SPACES = /^[A-Za-z ]+$/;
+const DIGITS_ONLY = /^\d+$/;
+
 function normalizeTemplateType(type) {
   if (type === TEMPLATE_TYPE_STUDENTS || type === TEMPLATE_TYPE_TEACHERS) {
     return type;
@@ -71,6 +77,111 @@ function shouldKeepTemplateRow(type, row = {}) {
   }
 
   return Boolean(String(row.teacherId || "").trim());
+}
+
+function hasSpecialCharacters(value, pattern) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return false;
+  return !pattern.test(normalized);
+}
+
+function normalizeStudentRow(row = {}) {
+  return {
+    studentId: String(row.studentId || "").trim(),
+    studentName: String(row.studentName || "").trim(),
+    rollNo: String(row.rollNo || "").trim(),
+    year: String(row.year || "").trim(),
+    stream: String(row.stream || "").trim(),
+    division: String(row.division || "").trim(),
+  };
+}
+
+function normalizeTeacherRow(row = {}) {
+  return {
+    teacherId: String(row.teacherId || "").trim(),
+    name: String(row.name || "").trim(),
+    subject: String(row.subject || "").trim(),
+    year: String(row.year || "").trim(),
+    stream: String(row.stream || "").trim(),
+    semester: String(row.semester || "").trim(),
+    division: String(row.division || "").trim(),
+  };
+}
+
+function validateStudentRow(row = {}) {
+  const student = normalizeStudentRow(row);
+  if (!student.studentId || !student.studentName || !student.rollNo || !student.year || !student.stream || !student.division) {
+    return "Student ID, name, roll no, year, stream and division are required.";
+  }
+  if (hasSpecialCharacters(student.studentId, ALPHANUMERIC_ONLY)) {
+    return "Student ID must contain only letters and numbers.";
+  }
+  if (hasSpecialCharacters(student.studentName, LETTERS_WITH_SPACES)) {
+    return "Student name must contain only letters and spaces.";
+  }
+  if (hasSpecialCharacters(student.rollNo, DIGITS_ONLY)) {
+    return "Roll no must contain only digits.";
+  }
+  if (hasSpecialCharacters(student.year, ALPHANUMERIC_WITH_SPACES)) {
+    return "Year must contain only letters, numbers and spaces.";
+  }
+  if (hasSpecialCharacters(student.stream, ALPHANUMERIC_WITH_SPACES)) {
+    return "Stream must contain only letters, numbers and spaces.";
+  }
+  if (hasSpecialCharacters(student.division, ALPHANUMERIC_WITH_SPACES)) {
+    return "Division must contain only letters, numbers and spaces.";
+  }
+  return null;
+}
+
+function validateTeacherRow(row = {}) {
+  const teacher = normalizeTeacherRow(row);
+  if (!teacher.teacherId || !teacher.name || !teacher.subject || !teacher.year || !teacher.stream || !teacher.semester || !teacher.division) {
+    return "Teacher ID, name, subject, year, stream, semester and division are required.";
+  }
+  if (hasSpecialCharacters(teacher.teacherId, ALPHANUMERIC_ONLY)) {
+    return "Teacher ID must contain only letters and numbers.";
+  }
+  if (hasSpecialCharacters(teacher.name, LETTERS_WITH_SPACES)) {
+    return "Teacher name must contain only letters and spaces.";
+  }
+  if (hasSpecialCharacters(teacher.subject, ALPHANUMERIC_WITH_SPACES)) {
+    return "Subject must contain only letters, numbers and spaces.";
+  }
+  if (hasSpecialCharacters(teacher.year, ALPHANUMERIC_WITH_SPACES)) {
+    return "Year must contain only letters, numbers and spaces.";
+  }
+  if (hasSpecialCharacters(teacher.stream, ALPHANUMERIC_WITH_SPACES)) {
+    return "Stream must contain only letters, numbers and spaces.";
+  }
+  if (hasSpecialCharacters(teacher.semester, ALPHANUMERIC_WITH_SPACES)) {
+    return "Semester must contain only letters, numbers and spaces.";
+  }
+  if (hasSpecialCharacters(teacher.division, ALPHANUMERIC_WITH_SPACES_AND_COMMAS)) {
+    return "Division must contain only letters, numbers, spaces and commas.";
+  }
+  return null;
+}
+
+function partitionValidRows(type, rows = []) {
+  const validator = type === TEMPLATE_TYPE_STUDENTS ? validateStudentRow : validateTeacherRow;
+  const validRows = [];
+  const invalidRows = [];
+
+  rows.forEach((row, index) => {
+    const message = validator(row);
+    if (message) {
+      invalidRows.push({
+        rowNumber: index + 1,
+        message,
+        row,
+      });
+      return;
+    }
+    validRows.push(row);
+  });
+
+  return { validRows, invalidRows };
 }
 
 async function removeExactTemplateDuplicates(connection) {
@@ -417,6 +528,7 @@ export async function storeImportTemplateRows({
   const templateType = normalizeTemplateType(type);
   const normalizedMode = mode === "replace" ? "replace" : "append";
   const normalizedRows = Array.isArray(rows) ? rows : [];
+  const { validRows, invalidRows } = partitionValidRows(templateType, normalizedRows);
 
   await ensureImportTemplateTables();
 
@@ -436,7 +548,20 @@ export async function storeImportTemplateRows({
       parseTemplateRow(item.row_data)
     );
 
-    if (normalizedMode === "append") {
+    if (normalizedMode === "replace" && validRows.length === 0) {
+      await connection.commit();
+      return {
+        mode: normalizedMode,
+        previousCount: existingRows.length,
+        addedCount: 0,
+        total: existingRows.length,
+        rows: existingRows,
+        invalidRows,
+        invalidCount: invalidRows.length,
+      };
+    }
+
+    if (normalizedMode === "append" && validRows.length > 0) {
       // Snapshot current template state before appending new rows.
       await insertTemplateBackupSnapshot(
         connection,
@@ -469,7 +594,7 @@ export async function storeImportTemplateRows({
     );
 
     const rowsToInsert = [];
-    normalizedRows.forEach((row) => {
+    validRows.forEach((row) => {
       if (!shouldKeepTemplateRow(templateType, row)) return;
       const key = buildTemplateRowKey(templateType, row);
       if (!key) return;
@@ -507,6 +632,8 @@ export async function storeImportTemplateRows({
       addedCount: rowsToInsert.length,
       total: finalRows.length,
       rows: finalRows,
+      invalidRows,
+      invalidCount: invalidRows.length,
     };
   } catch (error) {
     await connection.rollback();
@@ -526,28 +653,25 @@ export function parseTeacherImport(filePath) {
 
 export async function upsertStudents(students, actorId) {
   if (!Array.isArray(students) || students.length === 0) {
-    return { total: 0, inserted: 0, skipped: 0 };
+    return { total: 0, inserted: 0, skipped: 0, invalidCount: 0, invalidRows: [] };
   }
 
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
-    const normalizedStudents = students
-      .map((student) => ({
-        studentId: student.studentId?.toString().trim() || "",
-        studentName: student.studentName?.toString().trim() || "",
-        rollNo: student.rollNo?.toString().trim() || "",
-        year: student.year?.toString().trim() || "",
-        stream: student.stream?.toString().trim() || "",
-        division: student.division?.toString().trim() || "",
-      }))
-      .filter((student) => student.studentId);
+    const normalizedStudents = students.map((student) =>
+      normalizeStudentRow(student),
+    );
+    const { validRows: validStudents, invalidRows } = partitionValidRows(
+      TEMPLATE_TYPE_STUDENTS,
+      normalizedStudents,
+    );
 
     // Remove duplicate student IDs inside the uploaded file (keep first occurrence).
     const uniqueStudents = [];
     const seenStudentIds = new Set();
-    normalizedStudents.forEach((student) => {
+    validStudents.forEach((student) => {
       const key = student.studentId.toUpperCase();
       if (seenStudentIds.has(key)) return;
       seenStudentIds.add(key);
@@ -555,7 +679,7 @@ export async function upsertStudents(students, actorId) {
     });
 
     let insertedCount = 0;
-    let skippedCount = normalizedStudents.length - uniqueStudents.length;
+    let skippedCount = invalidRows.length + (validStudents.length - uniqueStudents.length);
     const BATCH_SIZE = 100; // Process 100 students at a time
 
     // Process students in batches to avoid parameter limits
@@ -593,6 +717,7 @@ export async function upsertStudents(students, actorId) {
       total: normalizedStudents.length,
       inserted: insertedCount,
       skipped: skippedCount,
+      invalidCount: invalidRows.length,
     });
 
     await connection.commit();
@@ -600,6 +725,8 @@ export async function upsertStudents(students, actorId) {
       total: normalizedStudents.length,
       inserted: insertedCount,
       skipped: skippedCount,
+      invalidCount: invalidRows.length,
+      invalidRows,
     };
   } catch (error) {
     await connection.rollback();
@@ -611,36 +738,25 @@ export async function upsertStudents(students, actorId) {
 
 export async function upsertTeachers(teachers, actorId) {
   if (!Array.isArray(teachers) || teachers.length === 0) {
-    return { total: 0, inserted: 0, skipped: 0 };
+    return { total: 0, inserted: 0, skipped: 0, invalidCount: 0, invalidRows: [] };
   }
 
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
-    const normalizedTeachers = teachers
-      .map((teacher) => ({
-        teacherId: teacher.teacherId?.toString().trim() || "",
-        name: teacher.name?.toString().trim() || "",
-        subject: teacher.subject?.toString().trim() || "",
-        year: teacher.year?.toString().trim() || "",
-        stream: teacher.stream?.toString().trim() || "",
-        semester: teacher.semester?.toString().trim() || "",
-        division: teacher.division?.toString().trim() || "",
-      }))
-      .filter(
-        (teacher) =>
-          teacher.teacherId &&
-          teacher.subject &&
-          teacher.year &&
-          teacher.stream &&
-          teacher.semester,
-      );
+    const normalizedTeachers = teachers.map((teacher) =>
+      normalizeTeacherRow(teacher),
+    );
+    const { validRows: validTeachers, invalidRows } = partitionValidRows(
+      TEMPLATE_TYPE_TEACHERS,
+      normalizedTeachers,
+    );
 
     // Remove duplicate teacher assignments inside uploaded file.
     const uniqueTeachers = [];
     const seenAssignments = new Set();
-    normalizedTeachers.forEach((teacher) => {
+    validTeachers.forEach((teacher) => {
       const key = [
         teacher.teacherId,
         teacher.subject,
@@ -657,7 +773,7 @@ export async function upsertTeachers(teachers, actorId) {
     });
 
     let insertedCount = 0;
-    let skippedCount = normalizedTeachers.length - uniqueTeachers.length;
+    let skippedCount = invalidRows.length + (validTeachers.length - uniqueTeachers.length);
     const BATCH_SIZE = 100; // Process 100 teachers at a time
 
     // Process teachers in batches to avoid parameter limits
@@ -697,6 +813,7 @@ export async function upsertTeachers(teachers, actorId) {
       total: normalizedTeachers.length,
       inserted: insertedCount,
       skipped: skippedCount,
+      invalidCount: invalidRows.length,
     });
 
     await connection.commit();
@@ -704,6 +821,8 @@ export async function upsertTeachers(teachers, actorId) {
       total: normalizedTeachers.length,
       inserted: insertedCount,
       skipped: skippedCount,
+      invalidCount: invalidRows.length,
+      invalidRows,
     };
   } catch (error) {
     await connection.rollback();

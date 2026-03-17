@@ -1727,6 +1727,11 @@ window.addEventListener("DOMContentLoaded", () => {
   const submitAddTeacherButton = document.querySelector(
     "[data-submit-add-teacher]",
   );
+  const addTeacherIdInput = document.querySelector("#addTeacherId");
+  const addTeacherNameInput = document.querySelector("#addTeacherName");
+  const addTeacherDivisionsInput = document.querySelector("#addTeacherDivisions");
+  const editTeacherNameInput = document.querySelector("#editTeacherName");
+  const editTeacherDivisionsInput = document.querySelector("#editTeacherDivisions");
 
   const semesterOptionsByYear = {
     FY: ["Sem 1", "Sem 2"],
@@ -1734,8 +1739,158 @@ window.addEventListener("DOMContentLoaded", () => {
     TY: ["Sem 5", "Sem 6"],
   };
 
+  const VALIDATION_PATTERNS = {
+    alphaNum: /^[A-Za-z0-9]+$/,
+    alphaNumSpace: /^[A-Za-z0-9 ]+$/,
+    lettersSpace: /^[A-Za-z ]+$/,
+    alphaNumSpaceComma: /^[A-Za-z0-9, ]+$/,
+    digitsOnly: /^\d+$/,
+  };
+
   let teacherFormStreams = [];
   let selectedTeacherForEdit = null;
+
+  function getOrCreateInlineHint(input) {
+    if (!input) return null;
+    const parent = input.closest(".input-group") || input.parentElement;
+    if (!parent) return null;
+
+    let hint = parent.querySelector("[data-inline-field-error]");
+    if (!hint) {
+      hint = document.createElement("small");
+      hint.setAttribute("data-inline-field-error", "true");
+      hint.style.color = "#c0392b";
+      hint.style.fontSize = "0.8rem";
+      hint.style.display = "none";
+      hint.style.marginTop = "0.35rem";
+      hint.style.lineHeight = "1.2";
+      hint.style.width = "100%";
+      parent.appendChild(hint);
+    }
+    return hint;
+  }
+
+  function setInlineValidationState(input, message) {
+    if (!input) return true;
+    const hint = getOrCreateInlineHint(input);
+    const hasError = Boolean(message);
+
+    input.style.borderColor = hasError ? "#e74c3c" : "";
+    input.setCustomValidity(hasError ? message : "");
+
+    if (hint) {
+      hint.textContent = message || "";
+      hint.style.display = hasError ? "block" : "none";
+    }
+
+    return !hasError;
+  }
+
+  function bindInlineValidation(input, validator) {
+    if (!input || typeof validator !== "function") return;
+    const runValidation = () => {
+      const message = validator(String(input.value || ""));
+      return setInlineValidationState(input, message);
+    };
+
+    input.addEventListener("input", runValidation);
+    input.addEventListener("blur", runValidation);
+    runValidation();
+  }
+
+  function validateInputNow(input, validator) {
+    if (!input || typeof validator !== "function") return true;
+    const message = validator(String(input.value || ""));
+    return setInlineValidationState(input, message);
+  }
+
+  function validateTeacherIdValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Teacher ID is required.";
+    if (!VALIDATION_PATTERNS.alphaNum.test(cleaned)) {
+      return "Teacher ID can contain only letters and numbers.";
+    }
+    return "";
+  }
+
+  function validateTeacherNameValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Teacher name is required.";
+    if (!VALIDATION_PATTERNS.lettersSpace.test(cleaned)) {
+      return "Teacher name can contain only letters and spaces.";
+    }
+    return "";
+  }
+
+  function validateTeacherDivisionValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Division is required.";
+    if (!VALIDATION_PATTERNS.alphaNumSpaceComma.test(cleaned)) {
+      return "Division can contain only letters, numbers, spaces, and commas.";
+    }
+    return "";
+  }
+
+  function validateSubjectValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Subject is required.";
+    if (!VALIDATION_PATTERNS.alphaNumSpace.test(cleaned)) {
+      return "Only letters, numbers, and spaces are allowed.";
+    }
+    return "";
+  }
+
+  function validateStudentIdValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Student ID is required.";
+    if (!VALIDATION_PATTERNS.alphaNum.test(cleaned)) {
+      return "Student ID can contain only letters and numbers.";
+    }
+    return "";
+  }
+
+  function validateStudentNameValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Student name is required.";
+    if (!VALIDATION_PATTERNS.lettersSpace.test(cleaned)) {
+      return "Student name can contain only letters and spaces.";
+    }
+    return "";
+  }
+
+  function validateRollNoValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Roll no is required.";
+    if (!VALIDATION_PATTERNS.digitsOnly.test(cleaned)) {
+      return "Roll no can contain only digits.";
+    }
+    if (Number(cleaned) <= 0) return "Roll no must be greater than 0.";
+    return "";
+  }
+
+  function validateStreamValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Stream is required.";
+    if (!VALIDATION_PATTERNS.alphaNumSpace.test(cleaned)) {
+      return "Stream can contain only letters, numbers, and spaces.";
+    }
+    return "";
+  }
+
+  function validateDivisionValue(value) {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) return "Division is required.";
+    if (!VALIDATION_PATTERNS.alphaNumSpace.test(cleaned)) {
+      return "Division can contain only letters, numbers, and spaces.";
+    }
+    return "";
+  }
+
+  bindInlineValidation(addTeacherIdInput, validateTeacherIdValue);
+  bindInlineValidation(addTeacherNameInput, validateTeacherNameValue);
+  bindInlineValidation(addTeacherDivisionsInput, validateTeacherDivisionValue);
+  bindInlineValidation(editTeacherNameInput, validateTeacherNameValue);
+  bindInlineValidation(editTeacherDivisionsInput, validateTeacherDivisionValue);
 
   function showTeacherListTab() {
     if (teachersListTab) teachersListTab.style.display = "block";
@@ -1882,6 +2037,8 @@ window.addEventListener("DOMContentLoaded", () => {
       populateSemestersForMapping(semesterSelect, yearSelect.value);
     });
 
+    bindInlineValidation(subjectInput, validateSubjectValue);
+
     removeButton?.addEventListener("click", () => {
       rowElement.remove();
       if (!teacherMappingsContainer.children.length) {
@@ -1916,6 +2073,8 @@ window.addEventListener("DOMContentLoaded", () => {
     yearSelect?.addEventListener("change", () => {
       populateSemestersForMapping(semesterSelect, yearSelect.value);
     });
+
+    bindInlineValidation(subjectInput, validateSubjectValue);
 
     removeButton?.addEventListener("click", () => {
       rowElement.remove();
@@ -2234,6 +2393,24 @@ window.addEventListener("DOMContentLoaded", () => {
   addTeacherForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
+    const isTeacherFormValid = [
+      validateInputNow(addTeacherIdInput, validateTeacherIdValue),
+      validateInputNow(addTeacherNameInput, validateTeacherNameValue),
+      validateInputNow(addTeacherDivisionsInput, validateTeacherDivisionValue),
+      ...Array.from(
+        teacherMappingsContainer?.querySelectorAll("[data-mapping-subject]") || [],
+      ).map((input) => validateInputNow(input, validateSubjectValue)),
+    ].every(Boolean);
+
+    if (!isTeacherFormValid) {
+      showToast({
+        title: "Fix highlighted fields",
+        message: "Please remove special characters from teacher form fields.",
+        type: "warning",
+      });
+      return;
+    }
+
     const teacherId = document.querySelector("#addTeacherId")?.value?.trim();
     const teacherName = document.querySelector("#addTeacherName")?.value?.trim();
     const commonDivision = normalizeCommonDivision(
@@ -2295,6 +2472,23 @@ window.addEventListener("DOMContentLoaded", () => {
 
   editTeacherForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const isEditTeacherFormValid = [
+      validateInputNow(editTeacherNameInput, validateTeacherNameValue),
+      validateInputNow(editTeacherDivisionsInput, validateTeacherDivisionValue),
+      ...Array.from(
+        editTeacherMappingsContainer?.querySelectorAll("[data-mapping-subject]") || [],
+      ).map((input) => validateInputNow(input, validateSubjectValue)),
+    ].every(Boolean);
+
+    if (!isEditTeacherFormValid) {
+      showToast({
+        title: "Fix highlighted fields",
+        message: "Please remove special characters from teacher form fields.",
+        type: "warning",
+      });
+      return;
+    }
+
 
     if (!selectedTeacherForEdit) {
       showToast({
@@ -2410,6 +2604,25 @@ window.addEventListener("DOMContentLoaded", () => {
   const resetEditStudentFormButton = document.querySelector(
     "[data-reset-edit-student-form]",
   );
+  const addStudentIdInput = document.querySelector("#addStudentId");
+  const addStudentNameInput = document.querySelector("#addStudentName");
+  const addStudentRollNoInput = document.querySelector("#addStudentRollNo");
+  const addStudentStreamInput = document.querySelector("#addStudentStream");
+  const addStudentDivisionInput = document.querySelector("#addStudentDivision");
+  const editStudentNameInput = document.querySelector("#editStudentName");
+  const editStudentRollNoInput = document.querySelector("#editStudentRollNo");
+  const editStudentStreamInput = document.querySelector("#editStudentStream");
+  const editStudentDivisionInput = document.querySelector("#editStudentDivision");
+
+  bindInlineValidation(addStudentIdInput, validateStudentIdValue);
+  bindInlineValidation(addStudentNameInput, validateStudentNameValue);
+  bindInlineValidation(addStudentRollNoInput, validateRollNoValue);
+  bindInlineValidation(addStudentStreamInput, validateStreamValue);
+  bindInlineValidation(addStudentDivisionInput, validateDivisionValue);
+  bindInlineValidation(editStudentNameInput, validateStudentNameValue);
+  bindInlineValidation(editStudentRollNoInput, validateRollNoValue);
+  bindInlineValidation(editStudentStreamInput, validateStreamValue);
+  bindInlineValidation(editStudentDivisionInput, validateDivisionValue);
 
   const bulkStudentYearSelect = document.querySelector("#bulkStudentYear");
   const bulkStudentStreamSelect = document.querySelector("#bulkStudentStream");
@@ -3175,6 +3388,23 @@ window.addEventListener("DOMContentLoaded", () => {
   addStudentForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
+    const isAddStudentFormValid = [
+      validateInputNow(addStudentIdInput, validateStudentIdValue),
+      validateInputNow(addStudentNameInput, validateStudentNameValue),
+      validateInputNow(addStudentRollNoInput, validateRollNoValue),
+      validateInputNow(addStudentStreamInput, validateStreamValue),
+      validateInputNow(addStudentDivisionInput, validateDivisionValue),
+    ].every(Boolean);
+
+    if (!isAddStudentFormValid) {
+      showToast({
+        title: "Fix highlighted fields",
+        message: "Please remove special characters from student form fields.",
+        type: "warning",
+      });
+      return;
+    }
+
     const studentId = document.querySelector("#addStudentId")?.value?.trim();
     const studentName = document.querySelector("#addStudentName")?.value?.trim();
     const rollNoValue = document.querySelector("#addStudentRollNo")?.value?.trim();
@@ -3228,6 +3458,22 @@ window.addEventListener("DOMContentLoaded", () => {
 
   editStudentForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const isEditStudentFormValid = [
+      validateInputNow(editStudentNameInput, validateStudentNameValue),
+      validateInputNow(editStudentRollNoInput, validateRollNoValue),
+      validateInputNow(editStudentStreamInput, validateStreamValue),
+      validateInputNow(editStudentDivisionInput, validateDivisionValue),
+    ].every(Boolean);
+
+    if (!isEditStudentFormValid) {
+      showToast({
+        title: "Fix highlighted fields",
+        message: "Please remove special characters from student form fields.",
+        type: "warning",
+      });
+      return;
+    }
+
 
     if (!selectedStudentForEdit) {
       showToast({

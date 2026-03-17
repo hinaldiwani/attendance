@@ -5,6 +5,12 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const LETTERS_WITH_SPACES = /^[A-Za-z ]+$/;
+
+function isLettersOnlyName(value) {
+    const name = String(value || '').trim();
+    return Boolean(name) && LETTERS_WITH_SPACES.test(name);
+}
 
 function parseCSV(csvContent) {
     const lines = csvContent.split('\n').filter(line => line.trim());
@@ -67,7 +73,14 @@ async function cleanupAndReimport() {
         // Step 4: Import teachers
         console.log('Step 4: Importing teachers...');
         let imported = 0;
+        let validationSkipCount = 0;
         for (const record of records) {
+            if (!isLettersOnlyName(record.Teacher_Name)) {
+                validationSkipCount++;
+                console.log(`⚠️  Skipped ${record.Teacher_ID}: invalid teacher name (letters and spaces only)`);
+                continue;
+            }
+
             await pool.query(
                 `INSERT INTO teacher_details_db 
                  (teacher_id, name, subject, stream, year, semester, division) 
@@ -85,6 +98,7 @@ async function cleanupAndReimport() {
             imported++;
         }
         console.log(`✅ Imported ${imported} teacher records\n`);
+        console.log(`⚠️  Validation skipped: ${validationSkipCount} teacher records\n`);
 
         // Step 5: Clear and rebuild mappings
         console.log('Step 5: Rebuilding student-teacher mappings...');

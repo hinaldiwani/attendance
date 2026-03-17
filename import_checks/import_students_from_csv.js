@@ -5,6 +5,12 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const LETTERS_WITH_SPACES = /^[A-Za-z ]+$/;
+
+function isLettersOnlyName(value) {
+    const name = String(value || '').trim();
+    return Boolean(name) && LETTERS_WITH_SPACES.test(name);
+}
 
 async function importStudents() {
     try {
@@ -24,10 +30,17 @@ async function importStudents() {
 
         let successCount = 0;
         let errorCount = 0;
+        let validationSkipCount = 0;
 
         // Import each student
         for (const student of students) {
             try {
+                if (!isLettersOnlyName(student.studentName)) {
+                    validationSkipCount++;
+                    console.log(`⚠️  Skipped ${student.studentId}: invalid student name (letters and spaces only)`);
+                    continue;
+                }
+
                 await pool.query(
                     `INSERT INTO student_details_db 
            (student_id, student_name, roll_no, year, stream, division) 
@@ -62,6 +75,7 @@ async function importStudents() {
         console.log('📊 IMPORT SUMMARY');
         console.log('═══════════════════════════════════════════════════════');
         console.log(`✅ Successfully imported: ${successCount} students`);
+        console.log(`⚠️  Validation skipped: ${validationSkipCount} students`);
         console.log(`❌ Errors: ${errorCount}`);
         console.log('═══════════════════════════════════════════════════════\n');
 

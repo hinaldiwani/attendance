@@ -25,6 +25,67 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "../..");
 
+const ALPHANUMERIC_ONLY = /^[A-Za-z0-9]+$/;
+const ALPHANUMERIC_WITH_SPACES = /^[A-Za-z0-9 ]+$/;
+const ALPHANUMERIC_WITH_SPACES_AND_COMMAS = /^[A-Za-z0-9, ]+$/;
+const LETTERS_WITH_SPACES = /^[A-Za-z ]+$/;
+
+function containsDisallowedCharacters(value, pattern) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return false;
+  return !pattern.test(normalized);
+}
+
+function validateSingleStudentPayload(student = {}) {
+  if (containsDisallowedCharacters(student.studentId, ALPHANUMERIC_ONLY)) {
+    return "Student ID must contain only letters and numbers";
+  }
+  if (containsDisallowedCharacters(student.studentName, LETTERS_WITH_SPACES)) {
+    return "Student name must contain only letters and spaces";
+  }
+  if (containsDisallowedCharacters(student.year, ALPHANUMERIC_WITH_SPACES)) {
+    return "Year must contain only letters, numbers, and spaces";
+  }
+  if (containsDisallowedCharacters(student.stream, ALPHANUMERIC_WITH_SPACES)) {
+    return "Stream must contain only letters, numbers, and spaces";
+  }
+  if (containsDisallowedCharacters(student.division, ALPHANUMERIC_WITH_SPACES)) {
+    return "Division must contain only letters, numbers, and spaces";
+  }
+  return null;
+}
+
+function validateSingleTeacherPayload(teacher = {}) {
+  if (containsDisallowedCharacters(teacher.teacherId, ALPHANUMERIC_ONLY)) {
+    return "Teacher ID must contain only letters and numbers";
+  }
+  if (containsDisallowedCharacters(teacher.teacherName, LETTERS_WITH_SPACES)) {
+    return "Teacher name must contain only letters and spaces";
+  }
+  if (containsDisallowedCharacters(teacher.division, ALPHANUMERIC_WITH_SPACES_AND_COMMAS)) {
+    return "Division must contain only letters, numbers, spaces, and commas";
+  }
+  return null;
+}
+
+function validateTeacherMappings(mappings = []) {
+  for (const item of mappings) {
+    if (containsDisallowedCharacters(item?.subject, ALPHANUMERIC_WITH_SPACES)) {
+      return "Subject must contain only letters, numbers, and spaces";
+    }
+    if (containsDisallowedCharacters(item?.year, ALPHANUMERIC_WITH_SPACES)) {
+      return "Year must contain only letters, numbers, and spaces";
+    }
+    if (containsDisallowedCharacters(item?.semester, ALPHANUMERIC_WITH_SPACES)) {
+      return "Semester must contain only letters, numbers, and spaces";
+    }
+    if (containsDisallowedCharacters(item?.stream, ALPHANUMERIC_WITH_SPACES)) {
+      return "Stream must contain only letters, numbers, and spaces";
+    }
+  }
+  return null;
+}
+
 function ensureImportSession(req) {
   if (!req.session.importQueue) {
     req.session.importQueue = {
@@ -88,14 +149,21 @@ export async function handleStudentImport(req, res, next) {
 
     const templateCounts = await getImportTemplateCounts();
 
+    const invalidCount = Number(templateState.invalidCount || 0);
+    const message = invalidCount > 0
+      ? `Student file processed with warnings. ${invalidCount} invalid row(s) were skipped.`
+      : "Student file processed successfully";
+
     return res.json({
-      message: "Student file processed successfully",
+      message,
       total: templateState.total,
       uploaded: students.length,
       previousCount: templateState.previousCount,
       preview: templateState.rows,
       mode: templateState.mode,
       templateCounts,
+      invalidCount,
+      invalidRows: (templateState.invalidRows || []).slice(0, 10),
     });
   } catch (error) {
     return next(error);
@@ -143,14 +211,21 @@ export async function handleTeacherImport(req, res, next) {
 
     const templateCounts = await getImportTemplateCounts();
 
+    const invalidCount = Number(templateState.invalidCount || 0);
+    const message = invalidCount > 0
+      ? `Teacher file processed with warnings. ${invalidCount} invalid row(s) were skipped.`
+      : "Teacher file processed successfully";
+
     return res.json({
-      message: "Teacher file processed successfully",
+      message,
       total: templateState.total,
       uploaded: teachers.length,
       previousCount: templateState.previousCount,
       preview: templateState.rows,
       mode: templateState.mode,
       templateCounts,
+      invalidCount,
+      invalidRows: (templateState.invalidRows || []).slice(0, 10),
     });
   } catch (error) {
     return next(error);
@@ -282,15 +357,23 @@ export async function confirmImport(req, res, next) {
     const studentsSkipped = results.students?.skipped || 0;
     const teachersInserted = results.teachers?.inserted || 0;
     const teachersSkipped = results.teachers?.skipped || 0;
+    const invalidStudents = results.students?.invalidCount || 0;
+    const invalidTeachers = results.teachers?.invalidCount || 0;
+    const duplicateStudents = Math.max(0, studentsSkipped - invalidStudents);
+    const duplicateTeachers = Math.max(0, teachersSkipped - invalidTeachers);
 
     let message = `Import complete. Added ${studentsInserted} student record(s) and ${teachersInserted} teacher record(s).`;
 
-    if (studentsSkipped > 0 || teachersSkipped > 0) {
-      message += ` Skipped ${studentsSkipped + teachersSkipped} duplicate record(s) that already exist.`;
+    if (duplicateStudents > 0 || duplicateTeachers > 0) {
+      message += ` Skipped ${duplicateStudents + duplicateTeachers} duplicate record(s) that already exist.`;
     }
 
-    if (studentsInserted === 0 && teachersInserted === 0 && (studentsSkipped > 0 || teachersSkipped > 0)) {
-      message = "All imported records already exist in the database. No new records were added.";
+    if (invalidStudents > 0 || invalidTeachers > 0) {
+      message += ` Ignored ${invalidStudents + invalidTeachers} invalid row(s).`;
+    }
+
+    if (studentsInserted === 0 && teachersInserted === 0 && (studentsSkipped > 0 || teachersSkipped > 0 || invalidStudents > 0 || invalidTeachers > 0)) {
+      message = "No new records were added. Imported rows were either duplicates or invalid.";
     }
 
     return res.json({
@@ -1242,6 +1325,15 @@ export async function addTeacher(req, res, next) {
       });
     }
 
+    const teacherValidationError = validateSingleTeacherPayload({
+      teacherId,
+      teacherName,
+      division,
+    });
+    if (teacherValidationError) {
+      return res.status(400).json({ message: teacherValidationError });
+    }
+
     const cleanDivision = [...new Set(
       String(division)
         .split(",")
@@ -1271,6 +1363,11 @@ export async function addTeacher(req, res, next) {
         message:
           "Each mapping must include subject, year, semester, and stream",
       });
+    }
+
+    const mappingsValidationError = validateTeacherMappings(validMappings);
+    if (mappingsValidationError) {
+      return res.status(400).json({ message: mappingsValidationError });
     }
 
     const uniqueMap = new Map();
@@ -1387,6 +1484,15 @@ export async function updateTeacherInfo(req, res, next) {
       });
     }
 
+    const teacherValidationError = validateSingleTeacherPayload({
+      teacherId,
+      teacherName,
+      division,
+    });
+    if (teacherValidationError) {
+      return res.status(400).json({ message: teacherValidationError });
+    }
+
     const cleanDivision = [...new Set(
       String(division)
         .split(",")
@@ -1416,6 +1522,11 @@ export async function updateTeacherInfo(req, res, next) {
         message:
           "Each mapping must include subject, year, semester, and stream",
       });
+    }
+
+    const mappingsValidationError = validateTeacherMappings(validMappings);
+    if (mappingsValidationError) {
+      return res.status(400).json({ message: mappingsValidationError });
     }
 
     const uniqueMap = new Map();
@@ -1569,6 +1680,17 @@ export async function addStudent(req, res, next) {
     const cleanDivision = String(division).trim().toUpperCase();
     const parsedRoll = Number(rollNo);
 
+    const studentValidationError = validateSingleStudentPayload({
+      studentId: cleanStudentId,
+      studentName: cleanStudentName,
+      year: cleanYear,
+      stream: cleanStream,
+      division: cleanDivision,
+    });
+    if (studentValidationError) {
+      return res.status(400).json({ message: studentValidationError });
+    }
+
     if (!Number.isFinite(parsedRoll) || parsedRoll <= 0) {
       return res.status(400).json({ message: "Roll no must be a valid positive number" });
     }
@@ -1666,6 +1788,17 @@ export async function updateStudentInfo(req, res, next) {
     const cleanStream = String(stream).trim().toUpperCase();
     const cleanDivision = String(division).trim().toUpperCase();
     const parsedRoll = Number(rollNo);
+
+    const studentValidationError = validateSingleStudentPayload({
+      studentId,
+      studentName: cleanStudentName,
+      year: cleanYear,
+      stream: cleanStream,
+      division: cleanDivision,
+    });
+    if (studentValidationError) {
+      return res.status(400).json({ message: studentValidationError });
+    }
 
     if (!Number.isFinite(parsedRoll) || parsedRoll <= 0) {
       return res.status(400).json({ message: "Roll no must be a valid positive number" });
