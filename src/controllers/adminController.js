@@ -86,6 +86,18 @@ function validateTeacherMappings(mappings = []) {
   return null;
 }
 
+function hasOnlyLettersAndSpaces(value) {
+  return !containsDisallowedCharacters(value, LETTERS_WITH_SPACES);
+}
+
+function hasOnlyAlphaNumSpaces(value) {
+  return !containsDisallowedCharacters(value, ALPHANUMERIC_WITH_SPACES);
+}
+
+function hasOnlyAlphaNumSpacesCommas(value) {
+  return !containsDisallowedCharacters(value, ALPHANUMERIC_WITH_SPACES_AND_COMMAS);
+}
+
 function ensureImportSession(req) {
   if (!req.session.importQueue) {
     req.session.importQueue = {
@@ -166,6 +178,13 @@ export async function handleStudentImport(req, res, next) {
       invalidRows: (templateState.invalidRows || []).slice(0, 10),
     });
   } catch (error) {
+    if (error?.code === "IMPORT_VALIDATION_ERROR") {
+      return res.status(400).json({
+        warning: true,
+        message: "File has special characters or invalid name values. Import blocked.",
+        details: error.invalidCells || [],
+      });
+    }
     return next(error);
   } finally {
     if (req.file) {
@@ -228,6 +247,13 @@ export async function handleTeacherImport(req, res, next) {
       invalidRows: (templateState.invalidRows || []).slice(0, 10),
     });
   } catch (error) {
+    if (error?.code === "IMPORT_VALIDATION_ERROR") {
+      return res.status(400).json({
+        warning: true,
+        message: "File has special characters or invalid name values. Import blocked.",
+        details: error.invalidCells || [],
+      });
+    }
     return next(error);
   } finally {
     if (req.file) {
@@ -1478,6 +1504,18 @@ export async function updateTeacherInfo(req, res, next) {
       });
     }
 
+    if (!hasOnlyLettersAndSpaces(teacherName)) {
+      return res.status(400).json({
+        message: "Teacher name cannot contain numbers or special characters",
+      });
+    }
+
+    if (!hasOnlyAlphaNumSpacesCommas(division)) {
+      return res.status(400).json({
+        message: "Division can contain only letters, numbers, commas, and spaces",
+      });
+    }
+
     if (!Array.isArray(mappings) || mappings.length === 0) {
       return res.status(400).json({
         message: "At least one subject mapping is required",
@@ -1516,6 +1554,21 @@ export async function updateTeacherInfo(req, res, next) {
       .filter((item) =>
         item.subject && item.year && item.semester && item.stream,
       );
+
+    const invalidMapping = validMappings.find(
+      (item) =>
+        !hasOnlyAlphaNumSpaces(item.subject) ||
+        !hasOnlyAlphaNumSpaces(item.year) ||
+        !hasOnlyAlphaNumSpaces(item.semester) ||
+        !hasOnlyAlphaNumSpaces(item.stream),
+    );
+
+    if (invalidMapping) {
+      return res.status(400).json({
+        message:
+          "Subject mappings cannot contain special characters in subject, year, semester, or stream",
+      });
+    }
 
     if (!validMappings.length) {
       return res.status(400).json({
@@ -1780,6 +1833,18 @@ export async function updateStudentInfo(req, res, next) {
     if (!studentId || !studentName || rollNo === undefined || !year || !stream || !division) {
       return res.status(400).json({
         message: "Student name, roll no, year, stream, and division are required",
+      });
+    }
+
+    if (!hasOnlyLettersAndSpaces(studentName)) {
+      return res.status(400).json({
+        message: "Student name cannot contain numbers or special characters",
+      });
+    }
+
+    if (!hasOnlyAlphaNumSpaces(year) || !hasOnlyAlphaNumSpaces(stream) || !hasOnlyAlphaNumSpaces(division)) {
+      return res.status(400).json({
+        message: "Year, stream, and division cannot contain special characters",
       });
     }
 

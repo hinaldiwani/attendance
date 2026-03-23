@@ -1724,6 +1724,9 @@ window.addEventListener("DOMContentLoaded", () => {
   const confirmEditTeacherButton = document.querySelector(
     "[data-confirm-edit-teacher]",
   );
+  const editTeacherWarningLabel = document.querySelector(
+    "[data-edit-teacher-warning]",
+  );
   const submitAddTeacherButton = document.querySelector(
     "[data-submit-add-teacher]",
   );
@@ -1749,6 +1752,32 @@ window.addEventListener("DOMContentLoaded", () => {
 
   let teacherFormStreams = [];
   let selectedTeacherForEdit = null;
+  const lettersAndSpacesOnly = /^[A-Za-z ]+$/;
+  const alphaNumSpaceCommaOnly = /^[A-Za-z0-9, ]+$/;
+  const alphaNumSpaceOnly = /^[A-Za-z0-9 ]+$/;
+
+  function setEditWarningLabel(labelEl, message) {
+    if (!labelEl) return;
+    if (!message) {
+      labelEl.style.display = "none";
+      labelEl.textContent = "";
+      return;
+    }
+    labelEl.style.display = "block";
+    labelEl.textContent = message;
+  }
+
+  function hasOnlyLettersAndSpaces(value) {
+    return lettersAndSpacesOnly.test(String(value || "").trim());
+  }
+
+  function hasOnlyAlphaNumSpaces(value) {
+    return alphaNumSpaceOnly.test(String(value || "").trim());
+  }
+
+  function hasOnlyAlphaNumSpacesCommas(value) {
+    return alphaNumSpaceCommaOnly.test(String(value || "").trim());
+  }
 
   function getOrCreateInlineHint(input) {
     if (!input) return null;
@@ -2096,6 +2125,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   function resetEditTeacherFormUI() {
     editTeacherForm?.reset();
+    setEditWarningLabel(editTeacherWarningLabel, "");
     if (editTeacherMappingsContainer) {
       editTeacherMappingsContainer.innerHTML = "";
     }
@@ -2103,6 +2133,51 @@ window.addEventListener("DOMContentLoaded", () => {
       editTeacherFormPanel.style.display = "none";
     }
     selectedTeacherForEdit = null;
+  }
+
+  function validateTeacherEditFormInputs({ silent = false } = {}) {
+    const teacherName = document.querySelector("#editTeacherName")?.value?.trim() || "";
+    const commonDivision = normalizeCommonDivision(
+      document.querySelector("#editTeacherDivisions")?.value,
+    );
+    const mappings = collectMappingsFromContainer(editTeacherMappingsContainer);
+
+    if (teacherName && !hasOnlyLettersAndSpaces(teacherName)) {
+      const message = "Warning: Teacher name cannot contain numbers or special characters.";
+      setEditWarningLabel(editTeacherWarningLabel, message);
+      if (!silent) {
+        showToast({ title: "Invalid teacher name", message, type: "warning" });
+      }
+      return false;
+    }
+
+    if (commonDivision && !hasOnlyAlphaNumSpacesCommas(commonDivision)) {
+      const message = "Warning: Common divisions can only contain letters, numbers, commas, and spaces.";
+      setEditWarningLabel(editTeacherWarningLabel, message);
+      if (!silent) {
+        showToast({ title: "Invalid division", message, type: "warning" });
+      }
+      return false;
+    }
+
+    const invalidMapping = mappings.find((mapping) =>
+      (mapping.subject && !hasOnlyAlphaNumSpaces(mapping.subject)) ||
+      (mapping.year && !hasOnlyAlphaNumSpaces(mapping.year)) ||
+      (mapping.semester && !hasOnlyAlphaNumSpaces(mapping.semester)) ||
+      (mapping.stream && !hasOnlyAlphaNumSpaces(mapping.stream))
+    );
+
+    if (invalidMapping) {
+      const message = "Warning: Subject mapping fields cannot contain special characters.";
+      setEditWarningLabel(editTeacherWarningLabel, message);
+      if (!silent) {
+        showToast({ title: "Invalid mapping fields", message, type: "warning" });
+      }
+      return false;
+    }
+
+    setEditWarningLabel(editTeacherWarningLabel, "");
+    return true;
   }
 
   function setSelectedTeacherInList(teacherId) {
@@ -2506,6 +2581,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const mappings = collectMappingsFromContainer(editTeacherMappingsContainer);
 
     if (!teacherName || !commonDivision) {
+      setEditWarningLabel(editTeacherWarningLabel, "");
       showToast({
         title: "Required fields missing",
         message: "Teacher name and common divisions are required.",
@@ -2515,6 +2591,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     if (!mappings.length) {
+      setEditWarningLabel(editTeacherWarningLabel, "");
       showToast({
         title: "Add at least one mapping",
         message: "Each mapping requires Subject, Year, Semester, and Stream.",
@@ -2522,6 +2599,8 @@ window.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
+
+    if (!validateTeacherEditFormInputs({ silent: false })) return;
 
     toggleLoading(confirmEditTeacherButton, true);
     try {
@@ -2600,6 +2679,9 @@ window.addEventListener("DOMContentLoaded", () => {
   const editStudentForm = document.querySelector("[data-edit-student-form]");
   const confirmEditStudentButton = document.querySelector(
     "[data-confirm-edit-student]",
+  );
+  const editStudentWarningLabel = document.querySelector(
+    "[data-edit-student-warning]",
   );
   const resetEditStudentFormButton = document.querySelector(
     "[data-reset-edit-student-form]",
@@ -2783,6 +2865,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   function resetEditStudentFormUI() {
     selectedStudentForEdit = "";
+    setEditWarningLabel(editStudentWarningLabel, "");
     if (editStudentFormPanel) {
       editStudentFormPanel.style.display = "none";
     }
@@ -2796,6 +2879,36 @@ window.addEventListener("DOMContentLoaded", () => {
       btn.style.color = "";
       btn.style.borderColor = "";
     });
+  }
+
+  function validateStudentEditFormInputs({ silent = false } = {}) {
+    const studentName = document.querySelector("#editStudentName")?.value?.trim() || "";
+    const year = document.querySelector("#editStudentYear")?.value?.trim() || "";
+    const stream = document.querySelector("#editStudentStream")?.value?.trim() || "";
+    const division = document.querySelector("#editStudentDivision")?.value?.trim() || "";
+
+    if (studentName && !hasOnlyLettersAndSpaces(studentName)) {
+      const message = "Warning: Student name cannot contain numbers or special characters.";
+      setEditWarningLabel(editStudentWarningLabel, message);
+      if (!silent) {
+        showToast({ title: "Invalid student name", message, type: "warning" });
+      }
+      return false;
+    }
+
+    if ((year && !hasOnlyAlphaNumSpaces(year)) ||
+      (stream && !hasOnlyAlphaNumSpaces(stream)) ||
+      (division && !hasOnlyAlphaNumSpaces(division))) {
+      const message = "Warning: Year, Stream, and Division cannot contain special characters.";
+      setEditWarningLabel(editStudentWarningLabel, message);
+      if (!silent) {
+        showToast({ title: "Invalid student fields", message, type: "warning" });
+      }
+      return false;
+    }
+
+    setEditWarningLabel(editStudentWarningLabel, "");
+    return true;
   }
 
   function setSelectedStudentInList(studentId) {
@@ -3491,6 +3604,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const division = document.querySelector("#editStudentDivision")?.value?.trim();
 
     if (!studentName || !rollNoValue || !year || !stream || !division) {
+      setEditWarningLabel(editStudentWarningLabel, "");
       showToast({
         title: "Required fields missing",
         message: "Name, roll no, year, stream, and division are required.",
@@ -3498,6 +3612,8 @@ window.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
+
+    if (!validateStudentEditFormInputs({ silent: false })) return;
 
     toggleLoading(confirmEditStudentButton, true);
     try {
@@ -3534,6 +3650,14 @@ window.addEventListener("DOMContentLoaded", () => {
     } finally {
       toggleLoading(confirmEditStudentButton, false);
     }
+  });
+
+  editTeacherForm?.addEventListener("input", () => {
+    validateTeacherEditFormInputs({ silent: true });
+  });
+
+  editStudentForm?.addEventListener("input", () => {
+    validateStudentEditFormInputs({ silent: true });
   });
 
   bulkStudentYearSelect?.addEventListener("change", async () => {

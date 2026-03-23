@@ -644,11 +644,13 @@ export async function storeImportTemplateRows({
 }
 
 export function parseStudentImport(filePath) {
-  return parseExcel(filePath, studentColumnMap);
+  const rows = parseExcel(filePath, studentColumnMap);
+  return rows;
 }
 
 export function parseTeacherImport(filePath) {
-  return parseExcel(filePath, teacherColumnMap);
+  const rows = parseExcel(filePath, teacherColumnMap);
+  return rows;
 }
 
 export async function upsertStudents(students, actorId) {

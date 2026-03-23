@@ -43,14 +43,59 @@ button {
 }
 
 .container {
-  width: min(1200px, 100%);
+  width: min(1000px, 100%);
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1rem;
+}
+
+/* Viewport safety: prevent zoom-induced horizontal overflow */
+.shell,
+.content-panel,
+.card,
+.layout-grid,
+.header,
+.header>div,
+.table-wrapper {
+  min-width: 0;
+}
+
+.header>div {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+/* Inline min-width styles in templates can force overflow at higher zoom */
+.content-panel [style*="min-width"],
+dialog [style*="min-width"] {
+  min-width: 0 !important;
 }
 
 .layout-grid {
   display: grid;
-  gap: 1.5rem;
+  gap: 1rem;
+}
+
+/* Keep dashboard flash/stat cards in one row even while zooming */
+[data-dashboard-panels] {
+  display: flex !important;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+[data-dashboard-panels]>.card {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 1rem;
+}
+
+[data-dashboard-panels] .stat-value {
+  font-size: clamp(1.55rem, 1.8vw, 2rem);
+}
+
+[data-dashboard-panels] .stat-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
 }
 
 @media (min-width: 900px) {
@@ -71,7 +116,7 @@ button {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
-  padding: 1.5rem;
+  padding: 1.2rem;
   box-shadow: var(--shadow-md);
 }
 
@@ -442,7 +487,7 @@ tbody td {
 
 .header {
   background: transparent;
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -639,19 +684,22 @@ tbody td {
 @media (min-width: 1024px) {
   .shell {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: clamp(180px, 18vw, 220px) minmax(0, 1fr);
     min-height: 100vh;
+    max-width: 100%;
+    margin: 0 auto;
   }
 
   .sidebar-panel {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1rem;
     border-right: 1px solid var(--color-border);
     background: rgba(255, 255, 255, 0.84);
     backdrop-filter: blur(16px);
   }
 
   .content-panel {
-    padding: 1.5rem 2rem 3rem;
+    padding: 1.5rem 1.5rem 2rem;
+    min-width: 0;
   }
 }
 
