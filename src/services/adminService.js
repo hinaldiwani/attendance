@@ -30,7 +30,7 @@ const LEGACY_IMPORT_TEMPLATE_BACKUP_TABLE = "import_template_backup";
 const ALPHANUMERIC_ONLY = /^[A-Za-z0-9]+$/;
 const ALPHANUMERIC_WITH_SPACES = /^[A-Za-z0-9 ]+$/;
 const ALPHANUMERIC_WITH_SPACES_AND_COMMAS = /^[A-Za-z0-9, ]+$/;
-const LETTERS_WITH_SPACES = /^[A-Za-z ]+$/;
+const LETTERS_WITH_SPACES = /^[A-Za-z\s.\-']+$/;
 const DIGITS_ONLY = /^\d+$/;
 
 function normalizeTemplateType(type) {

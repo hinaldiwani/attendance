@@ -5,11 +5,11 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const LETTERS_WITH_SPACES = /^[A-Za-z ]+$/;
 
-function isLettersOnlyName(value) {
+function isValidName(value) {
     const name = String(value || '').trim();
-    return Boolean(name) && LETTERS_WITH_SPACES.test(name);
+    // Allow letters, spaces, periods, hyphens, and apostrophes
+    return Boolean(name) && /^[A-Za-z\s.\-']+$/.test(name);
 }
 
 function parseCSV(csvContent) {
@@ -17,7 +17,24 @@ function parseCSV(csvContent) {
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
 
     return lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        // Properly parse CSV with quoted fields
+        const values = [];
+        let current = '';
+        let insideQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+
+            if (char === '"') {
+                insideQuotes = !insideQuotes;
+            } else if (char === ',' && !insideQuotes) {
+                values.push(current.trim().replace(/"/g, ''));
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        values.push(current.trim().replace(/"/g, ''));
         const record = {};
         headers.forEach((header, i) => {
             record[header] = values[i] || '';
@@ -52,9 +69,9 @@ async function importTeachers() {
         // Insert each teacher record
         for (const record of records) {
             try {
-                if (!isLettersOnlyName(record.Teacher_Name)) {
+                if (!isValidName(record.Teacher_Name)) {
                     validationSkipCount++;
-                    console.log(`  ⚠️  Skipped ${record.Teacher_ID}: invalid teacher name (letters and spaces only)`);
+                    console.log(`  ⚠️  Skipped ${record.Teacher_ID}: invalid teacher name`);
                     continue;
                 }
 
