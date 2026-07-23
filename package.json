@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "check-env": "node check-env.js",
+    "db":"node init-db.js && node initialize-db.js",
     "test": "node --test tests/e2e_real_world_flow.test.js",
     "test:e2e": "node --test tests/e2e_real_world_flow.test.js"
   },
