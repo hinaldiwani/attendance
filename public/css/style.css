@@ -501,8 +501,8 @@ tbody td {
 }
 
 .brand-mark {
-  width: 46px;
-  height: 46px;
+  width: 70px;
+  height: 70px;
   border-radius: 14px;
   background: var(--color-primary);
   color: #ffffff;
@@ -510,6 +510,7 @@ tbody td {
   display: grid;
   place-items: center;
   font-size: 1.4rem;
+  margin-top: -0.2rem;
 }
 
 .brand h1 {
@@ -811,9 +812,8 @@ tbody td {
   }
 
   .brand-mark {
-    width: 40px;
-    height: 40px;
-    font-size: 1.1rem;
+    width: 70px;
+    height: 70px;
   }
 
   .stat-label {

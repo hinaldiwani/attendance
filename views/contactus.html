@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us | AcadMark</title>
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+            font-family:'Poppins',sans-serif;
+        }
+
+        body{
+            background:#f5f9ff;
+            color:#333;
+        }
+
+        section{
+            padding:70px 10%;
+        }
+
+        .contact-container{
+            display:grid;
+            grid-template-columns:1fr 1.1fr;
+            gap:50px;
+            align-items:center;
+        }
+
+        .contact-info h1{
+            font-size:48px;
+            color:#2563EB;
+            margin-bottom:20px;
+        }
+
+        .contact-info p{
+            font-size:17px;
+            line-height:1.8;
+            color:#555;
+            margin-bottom:35px;
+        }
+
+        .info-box{
+            display:flex;
+            align-items:center;
+            gap:15px;
+            margin-bottom:20px;
+            background:#fff;
+            padding:18px;
+            border-radius:12px;
+            box-shadow:0 8px 25px rgba(0,0,0,.08);
+        }
+
+        .info-box i{
+            font-size:24px;
+            color:#2563EB;
+        }
+
+        .contact-form{
+            background:#fff;
+            padding:35px;
+            border-radius:18px;
+            box-shadow:0 12px 35px rgba(0,0,0,.08);
+        }
+
+        .contact-form h2{
+            margin-bottom:25px;
+            color:#2563EB;
+        }
+
+        .input-group{
+            margin-bottom:20px;
+        }
+
+        .input-group label{
+            display:block;
+            margin-bottom:8px;
+            font-weight:500;
+        }
+
+        .input-group input,
+        .input-group select,
+        .input-group textarea{
+            width:100%;
+            padding:14px 15px;
+            border:1px solid #d9d9d9;
+            border-radius:10px;
+            outline:none;
+            transition:.3s;
+            font-size:15px;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus,
+        .input-group textarea:focus{
+            border-color:#2563EB;
+            box-shadow:0 0 10px rgba(37,99,235,.2);
+        }
+
+        textarea{
+            resize:vertical;
+            min-height:150px;
+        }
+
+        .btn{
+            width:100%;
+            padding:15px;
+            background:#2563EB;
+            color:#fff;
+            border:none;
+            border-radius:10px;
+            font-size:17px;
+            cursor:pointer;
+            transition:.3s;
+        }
+
+        .btn:hover{
+            background:#184fc5;
+        }
+
+        @media(max-width:900px){
+
+            .contact-container{
+                grid-template-columns:1fr;
+            }
+
+            .contact-info{
+                text-align:center;
+            }
+
+            .info-box{
+                justify-content:center;
+            }
+
+            .contact-info h1{
+                font-size:36px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<section>
+
+<div class="contact-container">
+
+
+    <!-- Right Side -->
+    <div class="contact-form">
+
+        <h2>Send us a Message</h2>
+
+        <form>
+
+            <div class="input-group">
+                <label>Name</label>
+                <input
+                    type="text"
+                    placeholder="Enter your full name"
+                    required>
+            </div>
+
+            <div class="input-group">
+                <label>Email ID</label>
+                <input
+                    type="email"
+                    placeholder="example@college.edu"
+                    required>
+            </div>
+
+            <div class="input-group">
+                <label>Role</label>
+
+                <select required>
+
+                    <option value="">Select Role</option>
+
+                    <option>Admin</option>
+
+                    <option>Teacher</option>
+
+                    <option>Student</option>
+
+                </select>
+
+            </div>
+
+            <div class="input-group">
+                <label>Contact Number</label>
+
+                <input
+                    type="tel"
+                    maxlength="10"
+                    placeholder="Enter your mobile number"
+                    required>
+
+            </div>
+
+            <div class="input-group">
+
+                <label>Problem / Query</label>
+
+                <textarea
+                placeholder="Describe your issue or query..."
+                required></textarea>
+
+            </div>
+
+            <button class="btn">
+                Send Message
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+</section>
+
+</body>
+</html>
