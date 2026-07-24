@@ -449,8 +449,8 @@ export async function endAttendance(req, res, next) {
           WHEN stream = 'BSCDS' THEN 2
           ELSE 3
         END,
-        student_id ASC, 
-        roll_no ASC`,
+        roll_no ASC,
+        student_id ASC`, 
       studentIds,
     );
 

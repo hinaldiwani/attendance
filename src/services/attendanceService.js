@@ -40,8 +40,8 @@ export async function getMappedStudents(teacherId, filters = {}) {
       WHEN s.stream = 'BSCDS' THEN 2
       ELSE 3
     END,
-    s.student_id ASC, 
-    s.roll_no ASC`;
+    s.roll_no ASC,
+    s.student_id ASC`; 
 
   const [rows] = await pool.query(query, params);
   return rows;
