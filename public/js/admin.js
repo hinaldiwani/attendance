@@ -11,6 +11,18 @@ console.log("✅ Imports available:", {
 window.addEventListener("DOMContentLoaded", () => {
   console.log("🎯 DOMContentLoaded event fired!");
   // All DOM queries and event listeners go inside here
+  const getStudentRollSortValue = (student = {}) => {
+    const rollNo = student.rollNo ?? student.roll_no;
+    const numericRollNo = Number(rollNo);
+    return Number.isFinite(numericRollNo) ? numericRollNo : Number.MAX_SAFE_INTEGER;
+  };
+  const getStudentIdSortValue = (student = {}) =>
+    String(student.studentId ?? student.student_id ?? student.id ?? "").toLowerCase();
+  const compareStudentsByRollNo = (a, b) => {
+    const byRollNo = getStudentRollSortValue(a) - getStudentRollSortValue(b);
+    return byRollNo || getStudentIdSortValue(a).localeCompare(getStudentIdSortValue(b));
+  };
+
   const statElements = document.querySelectorAll("[data-stat]");
   const activityBody = document.querySelector("[data-activity-body]");
   const clearActivityButton = document.querySelector("[data-clear-activity]");
@@ -2928,10 +2940,16 @@ window.addEventListener("DOMContentLoaded", () => {
 
     try {
       const { allStudents } = await apiFetch("/api/admin/all-students");
+      // ===== OLD LOGIC (Commented Out) =====
+      // cachedStudentsForEdit = Array.isArray(allStudents)
+      //   ? [...allStudents].sort((a, b) =>
+      //     String(a.student_id || "").localeCompare(String(b.student_id || "")),
+      //   )
+      //   : [];
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       cachedStudentsForEdit = Array.isArray(allStudents)
-        ? [...allStudents].sort((a, b) =>
-          String(a.student_id || "").localeCompare(String(b.student_id || "")),
-        )
+        ? [...allStudents].sort(compareStudentsByRollNo)
         : [];
 
       if (!cachedStudentsForEdit.length) {
@@ -3358,12 +3376,16 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      // ===== OLD LOGIC (Commented Out) =====
       // Sort by student_id in ascending order
-      const sortedStudents = [...data.students].sort((a, b) => {
-        const idA = String(a.student_id || '').toLowerCase();
-        const idB = String(b.student_id || '').toLowerCase();
-        return idA.localeCompare(idB);
-      });
+      // const sortedStudents = [...data.students].sort((a, b) => {
+      //   const idA = String(a.student_id || '').toLowerCase();
+      //   const idB = String(b.student_id || '').toLowerCase();
+      //   return idA.localeCompare(idB);
+      // });
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
+      const sortedStudents = [...data.students].sort(compareStudentsByRollNo);
 
       studentsInfoBody.innerHTML = sortedStudents
         .map(
@@ -3779,12 +3801,16 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      // ===== OLD LOGIC (Commented Out) =====
       // Sort by student ID in ascending order
-      const sortedStudents = [...students].sort((a, b) => {
-        const idA = String(a.studentId || '').toLowerCase();
-        const idB = String(b.studentId || '').toLowerCase();
-        return idA.localeCompare(idB);
-      });
+      // const sortedStudents = [...students].sort((a, b) => {
+      //   const idA = String(a.studentId || '').toLowerCase();
+      //   const idB = String(b.studentId || '').toLowerCase();
+      //   return idA.localeCompare(idB);
+      // });
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
+      const sortedStudents = [...students].sort(compareStudentsByRollNo);
 
       const rows = sortedStudents
         .map(
@@ -3932,12 +3958,16 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      // ===== OLD LOGIC (Commented Out) =====
       // Sort by student_id in ascending order
-      const sortedStudents = [...allStudents].sort((a, b) => {
-        const idA = String(a.student_id || '').toLowerCase();
-        const idB = String(b.student_id || '').toLowerCase();
-        return idA.localeCompare(idB);
-      });
+      // const sortedStudents = [...allStudents].sort((a, b) => {
+      //   const idA = String(a.student_id || '').toLowerCase();
+      //   const idB = String(b.student_id || '').toLowerCase();
+      //   return idA.localeCompare(idB);
+      // });
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
+      const sortedStudents = [...allStudents].sort(compareStudentsByRollNo);
 
       const rows = sortedStudents
         .map(

@@ -86,6 +86,16 @@ class DefaulterService {
         // The subject filter would exclude students who have other subjects
 
         // Group by student to calculate overall attendance
+        // ===== OLD LOGIC (Commented Out) =====
+        // GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division, mas.month_val, mas.year_val
+        // HAVING attendance_percentage < ?
+        // ORDER BY s.year DESC, mas.month_val DESC,
+        //   CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        //   s.division,
+        //   s.student_id,
+        //   s.student_name
+        // ===== NEW LOGIC =====
+        // Sort students by Roll Number in ascending numeric order
         query += ` 
       GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division, mas.month_val, mas.year_val
       HAVING attendance_percentage < ?
@@ -96,8 +106,8 @@ class DefaulterService {
           ELSE 3
         END, 
         s.division, 
-        s.student_id, 
-        s.student_name
+        CAST(s.roll_no AS UNSIGNED) ASC,
+        s.student_id ASC
     `;
 
         params.push(threshold);
@@ -230,6 +240,16 @@ class DefaulterService {
         query += whereClause;
 
         // Group by student to calculate overall attendance
+        // ===== OLD LOGIC (Commented Out) =====
+        // GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division
+        // HAVING total_lectures > 0 AND attendance_percentage < ?
+        // ORDER BY s.year DESC,
+        //   CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        //   s.division,
+        //   s.student_id,
+        //   s.student_name
+        // ===== NEW LOGIC =====
+        // Sort students by Roll Number in ascending numeric order
         query += ` 
       GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division
       HAVING total_lectures > 0 AND attendance_percentage < ?
@@ -240,8 +260,8 @@ class DefaulterService {
           ELSE 3
         END, 
         s.division, 
-        s.student_id, 
-        s.student_name
+        CAST(s.roll_no AS UNSIGNED) ASC,
+        s.student_id ASC
     `;
 
         params.push(threshold);
@@ -304,6 +324,15 @@ class DefaulterService {
         }
 
         // Group by student to calculate overall attendance
+        // ===== OLD LOGIC (Commented Out) =====
+        // GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division
+        // HAVING attendance_percentage < ?
+        // ORDER BY CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        //   s.division,
+        //   s.student_id,
+        //   s.student_name
+        // ===== NEW LOGIC =====
+        // Sort students by Roll Number in ascending numeric order
         query += ` 
       GROUP BY s.student_id, s.student_name, s.roll_no, s.year, s.stream, s.division
       HAVING attendance_percentage < ?
@@ -314,8 +343,8 @@ class DefaulterService {
           ELSE 3
         END, 
         s.division, 
-        s.student_id, 
-        s.student_name
+        CAST(s.roll_no AS UNSIGNED) ASC,
+        s.student_id ASC
     `;
 
         params.push(threshold);

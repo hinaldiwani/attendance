@@ -442,6 +442,13 @@ export async function endAttendance(req, res, next) {
     // Get student details for records
     const studentIds = formatted.map((f) => f.studentId);
     const placeholders = studentIds.map(() => "?").join(",");
+    // ===== OLD LOGIC (Commented Out) =====
+    // SELECT student_id, student_name, roll_no FROM student_details_db WHERE student_id IN (...) ORDER BY
+    //   CASE WHEN stream = 'BSCIT' THEN 1 WHEN stream = 'BSCDS' THEN 2 ELSE 3 END,
+    //   roll_no ASC,
+    //   student_id ASC
+    // ===== NEW LOGIC =====
+    // Sort students by Roll Number in ascending numeric order
     const [students] = await pool.query(
       `SELECT student_id, student_name, roll_no FROM student_details_db WHERE student_id IN (${placeholders}) ORDER BY 
         CASE 
@@ -449,8 +456,8 @@ export async function endAttendance(req, res, next) {
           WHEN stream = 'BSCDS' THEN 2
           ELSE 3
         END,
-        roll_no ASC,
-        student_id ASC`, 
+        CAST(roll_no AS UNSIGNED) ASC,
+        student_id ASC`,
       studentIds,
     );
 
@@ -1655,6 +1662,11 @@ export async function teacherSearchStudent(req, res, next) {
     let query, params;
 
     if (isSingleLetter) {
+      // ===== OLD LOGIC (Commented Out) =====
+      // ORDER BY CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   s.student_id ASC
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       query = `SELECT 
         s.student_id,
         s.student_name,
@@ -1674,9 +1686,15 @@ export async function teacherSearchStudent(req, res, next) {
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        CAST(s.roll_no AS UNSIGNED) ASC,
         s.student_id ASC`;
       params = [trimmedInput.toUpperCase(), teacherId];
     } else if (isDigitsOnly) {
+      // ===== OLD LOGIC (Commented Out) =====
+      // ORDER BY CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   s.student_id ASC
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       query = `SELECT 
         s.student_id,
         s.student_name,
@@ -1696,9 +1714,15 @@ export async function teacherSearchStudent(req, res, next) {
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        CAST(s.roll_no AS UNSIGNED) ASC,
         s.student_id ASC`;
       params = [trimmedInput, teacherId];
     } else {
+      // ===== OLD LOGIC (Commented Out) =====
+      // ORDER BY CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   s.student_id ASC
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       query = `SELECT 
         s.student_id,
         s.student_name,
@@ -1723,6 +1747,7 @@ export async function teacherSearchStudent(req, res, next) {
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        CAST(s.roll_no AS UNSIGNED) ASC,
         s.student_id ASC`;
       params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, teacherId];
     }

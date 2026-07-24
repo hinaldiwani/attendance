@@ -30,6 +30,18 @@ const historyModal = document.querySelector("[data-history-modal]");
 const historyBody = document.querySelector("[data-history-body]");
 const closeHistoryButton = document.querySelector("[data-close-history]");
 
+const getStudentRollSortValue = (student = {}) => {
+  const rollNo = student.rollNo ?? student.roll_no;
+  const numericRollNo = Number(rollNo);
+  return Number.isFinite(numericRollNo) ? numericRollNo : Number.MAX_SAFE_INTEGER;
+};
+const getStudentIdSortValue = (student = {}) =>
+  String(student.studentId ?? student.student_id ?? student.id ?? "").toLowerCase();
+const compareStudentsByRollNo = (a, b) => {
+  const byRollNo = getStudentRollSortValue(a) - getStudentRollSortValue(b);
+  return byRollNo || getStudentIdSortValue(a).localeCompare(getStudentIdSortValue(b));
+};
+
 // Defaulter history
 const viewDefaulterHistoryButton = document.querySelector(
   "[data-view-defaulter-history]",
@@ -644,12 +656,16 @@ function renderActiveSession() {
   updateSnapshot(currentSession);
   updateSessionBadges();
 
+  // ===== OLD LOGIC (Commented Out) =====
   // Sort students by student ID in ascending order before rendering
-  const sortedStudents = [...currentSession.students].sort((a, b) => {
-    const idA = String(a.id || '').toLowerCase();
-    const idB = String(b.id || '').toLowerCase();
-    return idA.localeCompare(idB);
-  });
+  // const sortedStudents = [...currentSession.students].sort((a, b) => {
+  //   const idA = String(a.id || '').toLowerCase();
+  //   const idB = String(b.id || '').toLowerCase();
+  //   return idA.localeCompare(idB);
+  // });
+  // ===== NEW LOGIC =====
+  // Sort students by Roll Number in ascending numeric order
+  const sortedStudents = [...currentSession.students].sort(compareStudentsByRollNo);
 
   const rows = sortedStudents
     .map(
@@ -750,12 +766,17 @@ async function handleStartSession(event) {
         stream: student.stream,
         division: student.division,
         status: "P",
-      })).sort((a, b) => {
-        // Sort by student ID in ascending order
-        const idA = String(a.id || '').toLowerCase();
-        const idB = String(b.id || '').toLowerCase();
-        return idA.localeCompare(idB);
-      })
+      }))
+        // ===== OLD LOGIC (Commented Out) =====
+        // .sort((a, b) => {
+        //   // Sort by student ID in ascending order
+        //   const idA = String(a.id || '').toLowerCase();
+        //   const idB = String(b.id || '').toLowerCase();
+        //   return idA.localeCompare(idB);
+        // })
+        // ===== NEW LOGIC =====
+        // Sort students by Roll Number in ascending numeric order
+        .sort(compareStudentsByRollNo)
       : [];
 
     currentSession = {

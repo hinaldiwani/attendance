@@ -634,6 +634,14 @@ export async function downloadTemplate(req, res) {
         params.push(year);
       }
 
+      // ===== OLD LOGIC (Commented Out) =====
+      // query += ` ORDER BY year,
+      //   CASE WHEN stream = 'BSCIT' THEN 1 WHEN stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   division,
+      //   student_id,
+      //   roll_no`;
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       query += ` ORDER BY year, 
         CASE 
           WHEN stream = 'BSCIT' THEN 1
@@ -641,8 +649,8 @@ export async function downloadTemplate(req, res) {
           ELSE 3
         END, 
         division, 
-        student_id, 
-        roll_no`;
+        CAST(roll_no AS UNSIGNED) ASC,
+        student_id ASC`;
 
       // Fetch student data from database
       const [students] = await pool.query(query, params);
@@ -2045,6 +2053,12 @@ export async function getStudentsInfo(req, res, next) {
       : "";
 
     // Get students
+    // ===== OLD LOGIC (Commented Out) =====
+    // ORDER BY CASE WHEN stream = 'BSCIT' THEN 1 WHEN stream = 'BSCDS' THEN 2 ELSE 3 END,
+    //   student_id ASC,
+    //   roll_no ASC
+    // ===== NEW LOGIC =====
+    // Sort students by Roll Number in ascending numeric order
     const studentsQuery = `
       SELECT 
         student_id,
@@ -2062,8 +2076,8 @@ export async function getStudentsInfo(req, res, next) {
           WHEN stream = 'BSCDS' THEN 2
           ELSE 3
         END,
-        student_id ASC, 
-        roll_no ASC
+        CAST(roll_no AS UNSIGNED) ASC,
+        student_id ASC
     `;
 
     console.log("📝 Students Query:", studentsQuery);
@@ -2467,7 +2481,14 @@ export async function deleteAttendanceSession(req, res, next) {
 export async function getAllStudents(req, res, next) {
   try {
     const [students] = await pool.query(
-      `SELECT student_id, student_name, year, stream, division, COALESCE(status, 'Active') AS status
+      // ===== OLD LOGIC (Commented Out) =====
+      // SELECT student_id, student_name, year, stream, division, COALESCE(status, 'Active') AS status
+      // FROM student_details_db
+      // ORDER BY year, CASE WHEN stream = 'BSCIT' THEN 1 WHEN stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   division, student_id, student_name
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
+      `SELECT student_id, student_name, roll_no, year, stream, division, COALESCE(status, 'Active') AS status
        FROM student_details_db
        ORDER BY year, 
          CASE 
@@ -2476,8 +2497,8 @@ export async function getAllStudents(req, res, next) {
            ELSE 3
          END, 
          division, 
-         student_id, 
-         student_name`,
+         CAST(roll_no AS UNSIGNED) ASC,
+         student_id ASC`,
     );
 
     return res.json({
@@ -2636,6 +2657,14 @@ export async function getStudentsByFilters(req, res, next) {
       params.push(year);
     }
 
+    // ===== OLD LOGIC (Commented Out) =====
+    // query += ` ORDER BY year,
+    //   CASE WHEN stream = 'BSCIT' THEN 1 WHEN stream = 'BSCDS' THEN 2 ELSE 3 END,
+    //   division,
+    //   student_id,
+    //   roll_no`;
+    // ===== NEW LOGIC =====
+    // Sort students by Roll Number in ascending numeric order
     query += ` ORDER BY year, 
       CASE 
         WHEN stream = 'BSCIT' THEN 1
@@ -2643,8 +2672,8 @@ export async function getStudentsByFilters(req, res, next) {
         ELSE 3
       END, 
       division, 
-      student_id, 
-      roll_no`;
+      CAST(roll_no AS UNSIGNED) ASC,
+      student_id ASC`;
 
     const [students] = await pool.query(query, params);
 
@@ -2786,6 +2815,11 @@ export async function searchStudent(req, res, next) {
     let query, params;
 
     if (isSingleLetter) {
+      // ===== OLD LOGIC (Commented Out) =====
+      // ORDER BY CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   s.student_id ASC
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       query = `SELECT 
         s.student_id,
         s.student_name,
@@ -2802,9 +2836,15 @@ export async function searchStudent(req, res, next) {
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        CAST(s.roll_no AS UNSIGNED) ASC,
         s.student_id ASC`;
       params = [trimmedInput.toUpperCase()];
     } else if (isDigitsOnly) {
+      // ===== OLD LOGIC (Commented Out) =====
+      // ORDER BY CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   s.student_id ASC
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       query = `SELECT 
         s.student_id,
         s.student_name,
@@ -2821,9 +2861,15 @@ export async function searchStudent(req, res, next) {
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        CAST(s.roll_no AS UNSIGNED) ASC,
         s.student_id ASC`;
       params = [trimmedInput];
     } else {
+      // ===== OLD LOGIC (Commented Out) =====
+      // ORDER BY CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+      //   s.student_id ASC
+      // ===== NEW LOGIC =====
+      // Sort students by Roll Number in ascending numeric order
       query = `SELECT 
         s.student_id,
         s.student_name,
@@ -2845,6 +2891,7 @@ export async function searchStudent(req, res, next) {
       GROUP BY s.student_id
       ORDER BY 
         CASE WHEN s.stream = 'BSCIT' THEN 1 WHEN s.stream = 'BSCDS' THEN 2 ELSE 3 END,
+        CAST(s.roll_no AS UNSIGNED) ASC,
         s.student_id ASC`;
       params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm];
     }
