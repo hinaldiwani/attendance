@@ -1593,3 +1593,122 @@ dialog {
 *::after {
   box-sizing: border-box;
 }
+.college-header{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:20px;
+
+    padding:15px;
+    box-sizing:border-box;
+    font-family:Arial, sans-serif;
+}
+
+.logo{
+    flex-shrink:0;
+}
+
+.logo img{
+    width:130px;
+    height:auto;
+    display:block;
+}
+
+.college-details{
+    text-decoration:none;
+    text-align:center;
+    flex:1;
+    max-width:800px;
+}
+
+.college-details div{
+    margin:3px 0;
+    font-weight:bold;
+    line-height:1.4;
+    word-wrap:break-word;
+}
+
+.motto,
+.red,
+.minority{
+    color:#d32f2f;
+}
+
+.blue{
+    color:#3f51b5;
+}
+
+.black{
+    color:#000;
+}
+
+/* Desktop */
+.motto,
+.blue,
+.red,
+.black,
+.minority{
+    font-size:13px;
+}
+
+/* Tablet */
+@media (max-width:992px){
+
+    .logo img{
+        width:100px;
+    }
+
+    .motto,
+    .blue,
+    .red,
+    .black,
+    .minority{
+        font-size:13px;
+    }
+
+}
+
+/* Mobile */
+@media (max-width:768px){
+
+    .college-header{
+        flex-direction:column;
+        text-align:center;
+        gap:10px;
+    }
+
+    .logo img{
+        width:80px;
+    }
+
+    .college-details{
+        max-width:100%;
+    }
+
+    .motto,
+    .blue,
+    .red,
+    .black,
+    .minority{
+        font-size:11px;
+    }
+
+}
+
+/* Very Small Phones */
+@media (max-width:480px){
+
+    .logo img{
+        width:65px;
+    }
+
+    .motto,
+    .blue,
+    .red,
+    .black,
+    .minority{
+        font-size:10px;
+    }
+
+}
